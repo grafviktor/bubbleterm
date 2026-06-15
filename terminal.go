@@ -25,6 +25,7 @@ type TermWindow struct {
 
 	width, height int
 	Title         string
+	cursorVisible bool
 	closed        bool
 	err           error
 }
@@ -52,10 +53,15 @@ func NewTermWindow(width, height int) (*TermWindow, tea.Cmd) {
 	}
 
 	emu := vt.NewSafeEmulator(width, height)
-	tw := &TermWindow{pty: ptmx, cmd: cmd, emu: emu, width: width, height: height}
+	tw := &TermWindow{
+		pty: ptmx, cmd: cmd, emu: emu,
+		width: width, height: height,
+		cursorVisible: true,
+	}
 
 	emu.Emulator.SetCallbacks(vt.Callbacks{
 		Title: func(title string) { tw.Title = title },
+		CursorVisibility: func(visible bool) { tw.cursorVisible = visible },
 	})
 
 	// Forward anything the emulator writes to its response pipe — terminal
@@ -152,7 +158,7 @@ func (tw *TermWindow) View() string {
 	if tw.closed {
 		return "shell exited"
 	}
-	return tw.emu.Render()
+	return tw.renderWithCursor()
 }
 
 func clampSize(width, height int) (int, int) {
