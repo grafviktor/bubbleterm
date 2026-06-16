@@ -3,31 +3,11 @@ package main
 import (
 	"bytes"
 	"io"
-	"strings"
 
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/vt"
 )
-
-func (tw *TermWindow) renderWithCursor() string {
-	if tw.emu == nil {
-		return ""
-	}
-	if !tw.cursorVisible {
-		return tw.emu.Render()
-	}
-
-	pos := tw.emu.CursorPosition()
-	var b strings.Builder
-	for y := 0; y < tw.height; y++ {
-		if y > 0 {
-			b.WriteByte('\n')
-		}
-		renderTerminalLine(&b, tw.emu, y, pos.X, pos.Y)
-	}
-	return b.String()
-}
 
 func renderTerminalLine(buf io.StringWriter, emu *vt.SafeEmulator, y, cursorX, cursorY int) {
 	var pen uv.Style

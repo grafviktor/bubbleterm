@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/vt"
 	"github.com/creack/pty"
 )
@@ -34,8 +34,6 @@ type termOutputMsg []byte
 type termClosedMsg struct{ err error }
 
 func NewTermWindow(width, height int) (*TermWindow, tea.Cmd) {
-	width, height = clampSize(width, height)
-
 	shell := os.Getenv("SHELL")
 	if shell == "" {
 		shell = "/bin/sh"
@@ -58,11 +56,6 @@ func NewTermWindow(width, height int) (*TermWindow, tea.Cmd) {
 		width: width, height: height,
 		cursorVisible: true,
 	}
-
-	emu.Emulator.SetCallbacks(vt.Callbacks{
-		Title: func(title string) { tw.Title = title },
-		CursorVisibility: func(visible bool) { tw.cursorVisible = visible },
-	})
 
 	// Forward anything the emulator writes to its response pipe — terminal
 	// query replies *and* key bytes from SendKey — into the shell PTY.
@@ -127,7 +120,6 @@ func (tw *TermWindow) Update(msg tea.Msg) (*TermWindow, tea.Cmd) {
 }
 
 func (tw *TermWindow) resize(width, height int) {
-	width, height = clampSize(width, height)
 	tw.width, tw.height = width, height
 	tw.emu.Resize(width, height)
 	_ = pty.Setsize(tw.pty, &pty.Winsize{
@@ -152,21 +144,48 @@ func (tw *TermWindow) Close() {
 
 func (tw *TermWindow) View() string {
 	if tw.err != nil {
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("9")).
-			Render(fmt.Sprintf("terminal error: %v", tw.err))
+		return fmt.Sprintf("terminal error: %v", tw.err)
 	}
 	if tw.closed {
 		return "shell exited"
 	}
+	// return tw.emu.Render()
 	return tw.renderWithCursor()
 }
 
-func clampSize(width, height int) (int, int) {
-	if width < 10 {
-		width = 10
+// func (tw *TermWindow) renderWithCursor() string {
+// 	if tw.emu == nil {
+// 		return ""
+// 	}
+// 	if !tw.cursorVisible {
+// 		return tw.emu.Render()
+// 	}
+
+// 	// res := tw.emu.Render()
+// 	// _ = res // Suppress unused variable warning if renderWithCursor is not fully implemented
+
+// 	pos := tw.emu.CursorPosition()
+// 	tw.emu.SetCell(pos.X, pos.Y, cursorCell(tw.emu.CellAt(pos.X, pos.Y)))
+// 	// fmt.Fprintf(&pos, "\x1b[%d;%dH", pos.Y, pos.X)
+// 	return tw.emu.Render()
+
+// }
+
+func (tw *TermWindow) renderWithCursor() string {
+	if tw.emu == nil {
+		return ""
 	}
-	if height < 3 {
-		height = 3
+	if !tw.cursorVisible {
+		return tw.emu.Render()
 	}
-	return width, height
+
+	pos := tw.emu.CursorPosition()
+	var b strings.Builder
+	for y := 0; y < tw.height; y++ {
+		if y > 0 {
+			b.WriteByte('\n')
+		}
+		renderTerminalLine(&b, tw.emu, y, pos.X, pos.Y)
+	}
+	return b.String()
 }
