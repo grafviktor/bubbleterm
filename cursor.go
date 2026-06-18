@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/x/vt"
 )
 
+// See github.com/charmbracelet/ultraviolet@v0.0.0-20260303162955-0b88c25f3fff/buffer.go
 func renderTerminalLine(buf io.StringWriter, emu *vt.SafeEmulator, y, cursorX, cursorY int) {
 	var pen uv.Style
 	var link uv.Link

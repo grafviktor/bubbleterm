@@ -11,11 +11,6 @@ import (
 	"github.com/creack/pty"
 )
 
-const (
-	headerHeight = 1
-	footerHeight = 1
-)
-
 // TermWindow embeds a shell in Bubble Tea using x/vt for emulation and
 // creack/pty for the pseudo-terminal.
 type TermWindow struct {
