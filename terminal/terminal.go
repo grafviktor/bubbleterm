@@ -5,7 +5,7 @@ import (
 	"os"
 	"os/exec"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/vt"
 	"github.com/creack/pty"
@@ -102,13 +102,11 @@ func (tw *TermWindow) Update(msg tea.Msg) (*TermWindow, tea.Cmd) {
 		tw.err = msg.err
 		return tw, tea.Quit
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if tw.closed {
 			return tw, nil
 		}
-		if key, ok := teaKeyMsgToKeyPressEvent(msg); ok {
-			tw.emu.SendKey(key)
-		}
+		tw.emu.SendKey(vt.KeyPressEvent(msg))
 		return tw, nil
 	}
 
@@ -138,23 +136,23 @@ func (tw *TermWindow) Close() {
 	tw.closed = true
 }
 
-func (tw *TermWindow) View() string {
+func (tw *TermWindow) View() tea.View {
 	if tw.err != nil {
-		return fmt.Sprintf("terminal error: %v", tw.err)
+		return tea.NewView(fmt.Sprintf("terminal error: %v", tw.err))
 	}
 	if tw.closed {
-		return "shell exited"
+		return tea.NewView("shell exited")
 	}
 	// return tw.emu.Render()
 	return tw.renderWithCursor()
 }
 
-func (tw *TermWindow) renderWithCursor() string {
+func (tw *TermWindow) renderWithCursor() tea.View {
 	if tw.emu == nil {
-		return ""
+		return tea.NewView("")
 	}
 	if !tw.cursorVisible {
-		return tw.emu.Render()
+		return tea.NewView(tw.emu.Render())
 	}
 
 	pos := tw.emu.CursorPosition()
@@ -162,7 +160,7 @@ func (tw *TermWindow) renderWithCursor() string {
 	for y := range tw.height {
 		lines[y] = tw.parseCursor(y, pos.X, pos.Y)
 	}
-	return uv.Lines(lines).Render()
+	return tea.NewView(uv.Lines(lines).Render())
 }
 
 func (tw *TermWindow) parseCursor(y, cursorX, cursorY int) uv.Line {

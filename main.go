@@ -6,7 +6,7 @@ import (
 
 	"terminal-x-bubbletea/terminal"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/term"
 )
 
@@ -32,7 +32,7 @@ func (m model) Init() tea.Cmd {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if msg.String() == "ctrl+q" {
 			if m.term != nil {
 				m.term.Close()
@@ -46,12 +46,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m model) View() string {
+func (m model) View() tea.View {
+	var v tea.View
+
 	if m.term == nil {
-		return "failed to start terminal"
+		v.SetContent("failed to start terminal")
+	} else {
+		v.SetContent(m.term.View().Content)
 	}
 
-	return m.term.View()
+	v.AltScreen = true
+	return v
 }
 
 func main() {
@@ -60,7 +65,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
+	p := tea.NewProgram(initialModel())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
