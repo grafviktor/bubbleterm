@@ -47,14 +47,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() tea.View {
-	var v tea.View
-
 	if m.term == nil {
-		v.SetContent("failed to start terminal")
-	} else {
-		v.SetContent(m.term.View().Content)
+		v := tea.NewView("failed to start terminal")
+		v.AltScreen = true
+		return v
 	}
 
+	v := m.term.View()
 	v.AltScreen = true
 	return v
 }
@@ -66,6 +65,7 @@ func main() {
 	}
 
 	p := tea.NewProgram(initialModel())
+
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
