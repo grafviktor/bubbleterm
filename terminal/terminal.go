@@ -1,4 +1,4 @@
-package main
+package terminal
 
 import (
 	"fmt"
@@ -11,8 +11,7 @@ import (
 	"github.com/creack/pty"
 )
 
-// TermWindow embeds a shell in Bubble Tea using x/vt for emulation and
-// creack/pty for the pseudo-terminal.
+// TermWindow embeds a shell in Bubble Tea using x/vt for emulation and creack/pty for the pseudo-terminal.
 type TermWindow struct {
 	pty *os.File
 	cmd *exec.Cmd

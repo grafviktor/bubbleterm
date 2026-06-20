@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"os"
 
+	"terminal-x-bubbletea/terminal"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/term"
 )
 
 type model struct {
-	term *TermWindow
+	term *terminal.TermWindow
 	init tea.Cmd
 }
 
@@ -19,7 +21,7 @@ func initialModel() model {
 		width, height = 80, 24
 	}
 
-	tw, cmd := NewTermWindow(width, height)
+	tw, cmd := terminal.NewTermWindow(width-10, height-10)
 
 	return model{term: tw, init: cmd}
 }
