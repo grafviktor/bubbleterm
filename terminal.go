@@ -107,7 +107,7 @@ func (tw *TermWindow) Update(msg tea.Msg) (*TermWindow, tea.Cmd) {
 		if tw.closed {
 			return tw, nil
 		}
-		if key, ok := teaToKeyPress(msg); ok {
+		if key, ok := teaKeyMsgToKeyPressEvent(msg); ok {
 			tw.emu.SendKey(key)
 		}
 		return tw, nil

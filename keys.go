@@ -5,10 +5,11 @@ import (
 	"github.com/charmbracelet/x/vt"
 )
 
-// teaToKeyPress maps a Bubble Tea key event to x/vt's key model.
-// vt.SendKey turns that into terminal bytes; our drain goroutine forwards
-// those bytes to the PTY (same path as emulator query responses).
-func teaToKeyPress(msg tea.KeyMsg) (vt.KeyPressEvent, bool) {
+// teaKeyMsgToKeyPressEvent is an adapter that converts a Bubble Tea key message into a vt.KeyPressEvent.
+// When a use presses a key in Bubble Tea, it sends a tea.KeyMsg to the program. This function
+// translates that message into a vt.KeyPressEvent, which is used by the terminal emulator to
+// handle key presses.
+func teaKeyMsgToKeyPressEvent(msg tea.KeyMsg) (vt.KeyPressEvent, bool) {
 	mod := vt.KeyMod(0)
 	if msg.Alt {
 		mod |= vt.ModAlt
@@ -61,12 +62,12 @@ var teaSpecialKeys = map[tea.KeyType]rune{
 	tea.KeyLeft:  vt.KeyLeft,
 	tea.KeyRight: vt.KeyRight,
 
-	tea.KeyHome:    vt.KeyHome,
-	tea.KeyEnd:     vt.KeyEnd,
-	tea.KeyInsert:  vt.KeyInsert,
-	tea.KeyDelete:  vt.KeyDelete,
-	tea.KeyPgUp:    vt.KeyPgUp,
-	tea.KeyPgDown:  vt.KeyPgDown,
+	tea.KeyHome:   vt.KeyHome,
+	tea.KeyEnd:    vt.KeyEnd,
+	tea.KeyInsert: vt.KeyInsert,
+	tea.KeyDelete: vt.KeyDelete,
+	tea.KeyPgUp:   vt.KeyPgUp,
+	tea.KeyPgDown: vt.KeyPgDown,
 
 	tea.KeyF1:  vt.KeyF1,
 	tea.KeyF2:  vt.KeyF2,
