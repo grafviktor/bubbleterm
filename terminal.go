@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/vt"
 	"github.com/creack/pty"
 )
@@ -25,8 +25,10 @@ type TermWindow struct {
 	err           error
 }
 
-type termOutputMsg []byte
-type termClosedMsg struct{ err error }
+type (
+	termOutputMsg []byte
+	termClosedMsg struct{ err error }
+)
 
 func NewTermWindow(width, height int) (*TermWindow, tea.Cmd) {
 	shell := os.Getenv("SHELL")
@@ -148,24 +150,6 @@ func (tw *TermWindow) View() string {
 	return tw.renderWithCursor()
 }
 
-// func (tw *TermWindow) renderWithCursor() string {
-// 	if tw.emu == nil {
-// 		return ""
-// 	}
-// 	if !tw.cursorVisible {
-// 		return tw.emu.Render()
-// 	}
-
-// 	// res := tw.emu.Render()
-// 	// _ = res // Suppress unused variable warning if renderWithCursor is not fully implemented
-
-// 	pos := tw.emu.CursorPosition()
-// 	tw.emu.SetCell(pos.X, pos.Y, cursorCell(tw.emu.CellAt(pos.X, pos.Y)))
-// 	// fmt.Fprintf(&pos, "\x1b[%d;%dH", pos.Y, pos.X)
-// 	return tw.emu.Render()
-
-// }
-
 func (tw *TermWindow) renderWithCursor() string {
 	if tw.emu == nil {
 		return ""
@@ -175,12 +159,63 @@ func (tw *TermWindow) renderWithCursor() string {
 	}
 
 	pos := tw.emu.CursorPosition()
-	var b strings.Builder
-	for y := 0; y < tw.height; y++ {
-		if y > 0 {
-			b.WriteByte('\n')
-		}
-		renderTerminalLine(&b, tw.emu, y, pos.X, pos.Y)
+	lines := make([]uv.Line, tw.height)
+	for y := range tw.height {
+		lines[y] = tw.parseCursor(y, pos.X, pos.Y)
 	}
-	return b.String()
+	return uv.Lines(lines).Render()
+}
+
+func (tw *TermWindow) parseCursor(y, cursorX, cursorY int) uv.Line {
+	emu := tw.emu
+	line := uv.NewLine(emu.Width())
+	showCursor := y == cursorY
+
+	for x := 0; x < emu.Width(); {
+		cell := emu.CellAt(x, y)
+		if cell == nil || cell.IsZero() {
+			x++
+			continue
+		}
+
+		c := cell
+		if showCursor && x == cursorX {
+			c = tw.cursorCell(cell)
+		}
+
+		line.Set(x, c)
+
+		w := cell.Width
+		if w <= 0 {
+			w = 1
+		}
+		x += w
+	}
+
+	return line
+}
+
+func (tw *TermWindow) cursorCell(cell *uv.Cell) *uv.Cell {
+	var c uv.Cell
+	switch {
+	case cell == nil || cell.IsZero():
+		c = uv.EmptyCell
+	case cell.Equal(&uv.EmptyCell):
+		c = uv.EmptyCell
+	default:
+		c = *cell
+	}
+
+	if c.Style.Attrs&uv.AttrReverse != 0 {
+		c.Style.Attrs &^= uv.AttrReverse
+	} else {
+		c.Style.Attrs |= uv.AttrReverse
+	}
+
+	if c.Content == "" {
+		c.Content = " "
+		c.Width = 1
+	}
+
+	return &c
 }
