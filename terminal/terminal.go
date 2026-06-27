@@ -6,7 +6,6 @@ import (
 	"os/exec"
 
 	tea "charm.land/bubbletea/v2"
-	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/vt"
 	"github.com/creack/pty"
 )
@@ -115,44 +114,9 @@ func (tw *TermWindow) Update(msg tea.Msg) (*TermWindow, tea.Cmd) {
 		}
 		tw.emu.Paste(msg.Content)
 		return tw, nil
-
-	case tea.MouseMsg:
-		if tw.closed {
-			return tw, nil
-		}
-		tw.forwardMouse(msg)
-		return tw, nil
 	}
 
 	return tw, nil
-}
-
-// forwardMouse relays a mouse event to the embedded shell only when the
-// emulator reports that mouse tracking is active (e.g. after vim sends ?1002h).
-// Otherwise the shell would echo the CSI bytes as visible text.
-func (tw *TermWindow) forwardMouse(msg tea.MouseMsg) {
-	uvMouse := uv.Mouse{
-		X:      msg.Mouse().X,
-		Y:      msg.Mouse().Y,
-		Button: msg.Mouse().Button,
-		Mod:    msg.Mouse().Mod,
-	}
-
-	var event uv.MouseEvent
-	switch msg.(type) {
-	case tea.MouseClickMsg:
-		event = uv.MouseClickEvent(uvMouse)
-	case tea.MouseReleaseMsg:
-		event = uv.MouseReleaseEvent(uvMouse)
-	case tea.MouseWheelMsg:
-		event = uv.MouseWheelEvent(uvMouse)
-	case tea.MouseMotionMsg:
-		event = uv.MouseMotionEvent(uvMouse)
-	default:
-		return
-	}
-
-	tw.emu.SendMouse(event)
 }
 
 func (tw *TermWindow) resize(width, height int) {
@@ -202,10 +166,6 @@ func (tw *TermWindow) View() tea.View {
 	if tw.Title != "" {
 		v.WindowTitle = tw.Title
 	}
-
-	// Bubble Tea must capture mouse on the outer terminal so forwardMouse can
-	// relay events into the PTY.
-	v.MouseMode = tea.MouseModeCellMotion
 
 	return v
 }
