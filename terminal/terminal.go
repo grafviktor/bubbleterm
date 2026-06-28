@@ -6,6 +6,7 @@ import (
 	"os/exec"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/term"
 	"github.com/charmbracelet/x/vt"
 	"github.com/creack/pty"
@@ -45,7 +46,7 @@ var OptionWithCommand = func(cmd string) Option {
 	}
 }
 
-var OptionWithSize = func(width, height int) Option {
+var OptionWithInitialSize = func(width, height int) Option {
 	return func(tw *TermWindow) {
 		tw.width = width
 		tw.height = height
@@ -212,7 +213,12 @@ func (tw *TermWindow) View() tea.View {
 		return v
 	}
 
-	v.SetContent(tw.emu.Render())
+	// It's required to re-calculate width with every update.
+	content := lipgloss.NewStyle().
+		Width(tw.width).
+		Height(tw.height).
+		Render(tw.emu.Render())
+	v.SetContent(content)
 
 	if tw.cursorVisible {
 		pos := tw.emu.CursorPosition()

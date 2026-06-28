@@ -25,7 +25,7 @@ func initialModel() model {
 
 	withCommand := terminal.OptionWithCommand("zsh")
 	withTitle := terminal.OptionWithTitle("Terminal Window")
-	withSize := terminal.OptionWithSize(width/2, height)
+	withSize := terminal.OptionWithInitialSize(width/2, height)
 	tw1, cmd1 := terminal.NewTermWindow(1, withSize, withCommand, withTitle)
 	tw2, cmd2 := terminal.NewTermWindow(2, withSize, withCommand, withTitle)
 
@@ -65,7 +65,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.EnvMsg,
 		tea.ColorProfileMsg,
 		tea.ModeReportMsg:
-		// terminal.TermOutputMsg:
 		cmds := make([]tea.Cmd, len(m.terminals))
 		for i, tw := range m.terminals {
 			updated, cmd := tw.Update(msg)
@@ -111,8 +110,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) terminalView() []string {
 	var views []string
-	for i := range m.terminals {
-		views = append(views, m.terminals[i].View().Content)
+	for _, tw := range m.terminals {
+		views = append(views, tw.View().Content)
 	}
 	return views
 }
