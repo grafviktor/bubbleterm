@@ -130,14 +130,13 @@ func (tw *TermWindow) ptyToTerminalView() tea.Cmd {
 func (tw *TermWindow) Update(msg tea.Msg) (*TermWindow, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		tw.Resize(msg.Width, msg.Height)
+		tw.resize(msg.Width, msg.Height)
 		return tw, nil
 
 	case TermOutputMsg:
 		if tw.closed {
 			return tw, nil
 		}
-		// _, _ = tw.emu.Write(msg.data)
 		return tw, tw.ptyToTerminalView()
 
 	case TermClosedMsg:
@@ -163,7 +162,7 @@ func (tw *TermWindow) Update(msg tea.Msg) (*TermWindow, tea.Cmd) {
 	return tw, nil
 }
 
-func (tw *TermWindow) Resize(width, height int) {
+func (tw *TermWindow) resize(width, height int) {
 	tw.width, tw.height = width, height
 	tw.emu.Resize(width, height)
 	_ = pty.Setsize(tw.pty, &pty.Winsize{

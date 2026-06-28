@@ -18,10 +18,16 @@ type model struct {
 }
 
 func initialModel() model {
+	width, height, err := term.GetSize(os.Stdout.Fd())
+	if err != nil {
+		width, height = 80, 24
+	}
+
 	withCommand := terminal.OptionWithCommand("zsh")
 	withTitle := terminal.OptionWithTitle("Terminal Window")
-	tw1, cmd1 := terminal.NewTermWindow(1, withCommand, withTitle)
-	tw2, cmd2 := terminal.NewTermWindow(2, withCommand, withTitle)
+	withSize := terminal.OptionWithSize(width/2, height)
+	tw1, cmd1 := terminal.NewTermWindow(1, withSize, withCommand, withTitle)
+	tw2, cmd2 := terminal.NewTermWindow(2, withSize, withCommand, withTitle)
 
 	return model{
 		focusedTerminal: 0,
@@ -46,11 +52,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 	case tea.WindowSizeMsg:
-		for i, terminal := range m.terminals {
-			terminal.Resize(msg.Width/len(m.terminals), msg.Height)
-			m.terminals[i] = terminal
+		cmds := make([]tea.Cmd, len(m.terminals))
+		for i, tw := range m.terminals {
+			updated, cmd := tw.Update(tea.WindowSizeMsg{
+				Width:  msg.Width / len(m.terminals),
+				Height: msg.Height,
+			})
+			m.terminals[i] = updated
+			cmds[i] = cmd
 		}
-		return m, nil
+		return m, tea.Batch(cmds...)
 	case tea.EnvMsg,
 		tea.ColorProfileMsg,
 		tea.ModeReportMsg:
