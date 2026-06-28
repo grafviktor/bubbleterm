@@ -26,7 +26,7 @@ type TermWindow struct {
 }
 
 type (
-	TermOutputMsg []byte
+	TermOutputMsg struct{ data []byte }
 	TermClosedMsg struct{ err error }
 )
 
@@ -85,12 +85,12 @@ func NewTermWindow(opts ...Option) (*TermWindow, tea.Cmd) {
 
 	// Forward anything the emulator writes to its response pipe — terminal
 	// query replies *and* key bytes from SendKey — into the shell PTY.
-	go tw.drainEmulator()
+	go tw.terminalViewToPty()
 
-	return tw, readPTY(ptmx)
+	return tw, tw.ptyToTerminalView()
 }
 
-func (tw *TermWindow) drainEmulator() {
+func (tw *TermWindow) terminalViewToPty() {
 	buf := make([]byte, 1024)
 	for {
 		n, err := tw.emu.Read(buf)
@@ -103,14 +103,15 @@ func (tw *TermWindow) drainEmulator() {
 	}
 }
 
-func readPTY(f *os.File) tea.Cmd {
+func (tw *TermWindow) ptyToTerminalView() tea.Cmd {
 	return func() tea.Msg {
 		buf := make([]byte, 4096)
-		n, err := f.Read(buf)
+		n, err := tw.pty.Read(buf)
 		if err != nil {
 			return TermClosedMsg{err: err}
 		}
-		return TermOutputMsg(buf[:n])
+		_, _ = tw.emu.Write(buf[:n])
+		return TermOutputMsg{data: buf[:n]}
 	}
 }
 
@@ -124,8 +125,8 @@ func (tw *TermWindow) Update(msg tea.Msg) (*TermWindow, tea.Cmd) {
 		if tw.closed {
 			return tw, nil
 		}
-		_, _ = tw.emu.Write(msg)
-		return tw, readPTY(tw.pty)
+		// _, _ = tw.emu.Write(msg.data)
+		return tw, tw.ptyToTerminalView()
 
 	case TermClosedMsg:
 		tw.closed = true

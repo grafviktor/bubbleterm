@@ -53,7 +53,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.EnvMsg,
 		tea.ColorProfileMsg,
 		tea.ModeReportMsg,
-		// tea.KeyboardEnhancementsMsg,
 		terminal.TermOutputMsg:
 		cmds := make([]tea.Cmd, len(m.terminals))
 		for i, tw := range m.terminals {
@@ -63,8 +62,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Batch(cmds...)
 	case terminal.TermClosedMsg:
-		for _, tw := range m.terminals {
-			tw.Update(msg)
+		for i, tw := range m.terminals {
+			updated, cmd := tw.Update(msg)
+			m.terminals[i] = updated
+			if cmd != nil {
+				return m, cmd
+			}
 		}
 		return m, nil
 	}
