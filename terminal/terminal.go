@@ -38,27 +38,6 @@ type (
 	}
 )
 
-type Option func(*TermWindow)
-
-var OptionWithCommand = func(cmd string) Option {
-	return func(tw *TermWindow) {
-		tw.command = cmd
-	}
-}
-
-var OptionWithInitialSize = func(width, height int) Option {
-	return func(tw *TermWindow) {
-		tw.width = width
-		tw.height = height
-	}
-}
-
-var OptionWithTitle = func(title string) Option {
-	return func(tw *TermWindow) {
-		tw.Title = title
-	}
-}
-
 func NewTermWindow(id int, opts ...Option) (*TermWindow, tea.Cmd) {
 	tw := &TermWindow{id: id}
 
@@ -135,6 +114,9 @@ func (tw *TermWindow) Update(msg tea.Msg) (*TermWindow, tea.Cmd) {
 		return tw, nil
 
 	case TermOutputMsg:
+		if tw.id != msg.ID {
+			return tw, nil
+		}
 		if tw.closed {
 			return tw, nil
 		}

@@ -27,12 +27,12 @@ func initialModel() model {
 	withTitle := terminal.OptionWithTitle("Terminal Window")
 	withSize := terminal.OptionWithInitialSize(width/2, height)
 	tw1, cmd1 := terminal.NewTermWindow(1, withSize, withCommand, withTitle)
-	tw2, cmd2 := terminal.NewTermWindow(2, withSize, withCommand, withTitle)
+	// tw2, cmd2 := terminal.NewTermWindow(2, withSize, withCommand, withTitle)
 
 	return model{
 		focusedTerminal: 0,
-		terminals:       []*terminal.TermWindow{tw1, tw2},
-		init:            tea.Batch(cmd1, cmd2),
+		terminals:       []*terminal.TermWindow{tw1},
+		init:            tea.Batch(cmd1),
 	}
 }
 
