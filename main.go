@@ -26,13 +26,13 @@ func initialModel() model {
 	withCommand := terminal.OptionWithCommand("zsh")
 	withTitle := terminal.OptionWithTitle("Terminal Window")
 	withSize := terminal.OptionWithInitialSize(width/2, height)
-	tw1, cmd1 := terminal.NewTermWindow(1, withSize, withCommand, withTitle)
-	// tw2, cmd2 := terminal.NewTermWindow(2, withSize, withCommand, withTitle)
+	tw1, cmd1 := terminal.NewTermWindow(0, withSize, withCommand, withTitle)
+	tw2, cmd2 := terminal.NewTermWindow(1, withSize, withCommand, withTitle)
 
 	return model{
-		focusedTerminal: 0,
-		terminals:       []*terminal.TermWindow{tw1},
-		init:            tea.Batch(cmd1),
+		focusedTerminal: 1,
+		terminals:       []*terminal.TermWindow{tw1, tw2},
+		init:            tea.Batch(cmd1, cmd2),
 	}
 }
 
@@ -50,6 +50,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			return m, tea.Quit
+		}
+		if msg.String() == "ctrl+w" {
+			m.focusedTerminal = (m.focusedTerminal + 1) % len(m.terminals)
+			return m, nil
 		}
 	case tea.WindowSizeMsg:
 		cmds := make([]tea.Cmd, len(m.terminals))
@@ -108,14 +112,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m model) terminalView() []string {
-	var views []string
-	for _, tw := range m.terminals {
-		views = append(views, tw.View().Content)
-	}
-	return views
-}
-
 func (m model) View() tea.View {
 	if m.terminals == nil {
 		v := tea.NewView("failed to start terminal")
@@ -123,8 +119,34 @@ func (m model) View() tea.View {
 		return v
 	}
 
-	v := tea.NewView(lipgloss.JoinHorizontal(lipgloss.Top, m.terminalView()...))
+	var views []string
+	var cursor *tea.Cursor
+
+	for i, tw := range m.terminals {
+		tv := tw.View()
+		views = append(views, tv.Content)
+
+		if i != m.focusedTerminal || tv.Cursor == nil {
+			continue
+		}
+
+		c := *tv.Cursor
+		// TODO: hack
+		w := 0
+		if tw.ID() != 0 {
+			w, _ = tw.GetSizeCurrent()
+		}
+		c.X += w
+		// for j := 0; j < i; j++ {
+		// 	w, _ := m.terminals[j].GetSizeCurrent()
+		// 	c.X += w
+		// }
+		cursor = &c
+	}
+
+	v := tea.NewView(lipgloss.JoinHorizontal(lipgloss.Top, views...))
 	v.AltScreen = true
+	v.Cursor = cursor
 	return v
 }
 
