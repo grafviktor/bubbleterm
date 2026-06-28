@@ -7,23 +7,27 @@ import (
 	"terminal-x-bubbletea/terminal"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/term"
 )
 
 type model struct {
-	term *terminal.TermWindow
-	init tea.Cmd
+	focusedTerminal int
+	terminals       []*terminal.TermWindow
+	init            tea.Cmd
 }
 
 func initialModel() model {
-	width, height, err := term.GetSize(os.Stdout.Fd())
-	if err != nil {
-		width, height = 80, 24
+	withCommand := terminal.OptionWithCommand("zsh")
+	withTitle := terminal.OptionWithTitle("Terminal Window")
+	tw1, cmd1 := terminal.NewTermWindow(withCommand, withTitle)
+	tw2, cmd2 := terminal.NewTermWindow(withCommand, withTitle)
+
+	return model{
+		focusedTerminal: 0,
+		terminals:       []*terminal.TermWindow{tw1, tw2},
+		init:            tea.Batch(cmd1, cmd2),
 	}
-
-	tw, cmd := terminal.NewTermWindow(width-10, height-10)
-
-	return model{term: tw, init: cmd}
 }
 
 func (m model) Init() tea.Cmd {
@@ -34,26 +38,64 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		if msg.String() == "ctrl+q" {
-			if m.term != nil {
-				m.term.Close()
+			if m.terminals != nil {
+				for _, tw := range m.terminals {
+					tw.Close()
+				}
 			}
 			return m, tea.Quit
 		}
+	case tea.WindowSizeMsg:
+		for _, tw := range m.terminals {
+			tw.Resize(msg.Width/len(m.terminals), msg.Height)
+		}
+		return m, nil
+	case tea.EnvMsg,
+		tea.ColorProfileMsg,
+		tea.ModeReportMsg,
+		// tea.KeyboardEnhancementsMsg,
+		terminal.TermOutputMsg:
+		cmds := make([]tea.Cmd, len(m.terminals))
+		for i, tw := range m.terminals {
+			updated, cmd := tw.Update(msg)
+			m.terminals[i] = updated
+			cmds[i] = cmd
+		}
+		return m, tea.Batch(cmds...)
+	case terminal.TermClosedMsg:
+		for _, tw := range m.terminals {
+			tw.Update(msg)
+		}
+		return m, nil
 	}
 
-	updated, cmd := m.term.Update(msg)
-	m.term = updated
-	return m, cmd
+	for i, tw := range m.terminals {
+		if i == m.focusedTerminal {
+			updated, cmd := tw.Update(msg)
+			m.terminals[i] = updated
+			return m, cmd
+		}
+	}
+
+	return m, nil
+}
+
+func (m model) terminalView() []string {
+	var views []string
+	for i := range m.terminals {
+		views = append(views, m.terminals[i].View().Content)
+	}
+	return views
 }
 
 func (m model) View() tea.View {
-	if m.term == nil {
+	if m.terminals == nil {
 		v := tea.NewView("failed to start terminal")
 		v.AltScreen = true
 		return v
 	}
 
-	v := m.term.View()
+	v := tea.NewView(lipgloss.JoinHorizontal(lipgloss.Top, m.terminalView()...))
 	v.AltScreen = true
 	return v
 }

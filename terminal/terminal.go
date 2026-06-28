@@ -6,6 +6,7 @@ import (
 	"os/exec"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/term"
 	"github.com/charmbracelet/x/vt"
 	"github.com/creack/pty"
 )
@@ -21,36 +22,66 @@ type TermWindow struct {
 	cursorVisible bool
 	closed        bool
 	err           error
+	command       string
 }
 
 type (
-	termOutputMsg []byte
-	termClosedMsg struct{ err error }
+	TermOutputMsg []byte
+	TermClosedMsg struct{ err error }
 )
 
-func NewTermWindow(width, height int) (*TermWindow, tea.Cmd) {
-	shell := os.Getenv("SHELL")
-	if shell == "" {
-		shell = "/bin/sh"
+type Option func(*TermWindow)
+
+var OptionWithCommand = func(cmd string) Option {
+	return func(tw *TermWindow) {
+		tw.command = cmd
+	}
+}
+
+var OptionWithSize = func(width, height int) Option {
+	return func(tw *TermWindow) {
+		tw.width = width
+		tw.height = height
+	}
+}
+
+var OptionWithTitle = func(title string) Option {
+	return func(tw *TermWindow) {
+		tw.Title = title
+	}
+}
+
+func NewTermWindow(opts ...Option) (*TermWindow, tea.Cmd) {
+	tw := &TermWindow{}
+
+	for _, opt := range opts {
+		opt(tw)
 	}
 
-	cmd := exec.Command(shell)
+	if tw.command == "" {
+		tw.command = os.Getenv("SHELL")
+		if tw.command == "" {
+			tw.command = "/bin/sh"
+		}
+	}
+
+	cmd := exec.Command(tw.command)
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
 
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{
-		Rows: uint16(height),
-		Cols: uint16(width),
+		Rows: uint16(tw.height),
+		Cols: uint16(tw.width),
 	})
 	if err != nil {
-		return &TermWindow{width: width, height: height, closed: true, err: err}, nil
+		return &TermWindow{width: tw.width, height: tw.height, closed: true, err: err}, nil
 	}
 
-	emu := vt.NewSafeEmulator(width, height)
-	tw := &TermWindow{
-		pty: ptmx, cmd: cmd, emu: emu,
-		width: width, height: height,
-		cursorVisible: true,
-	}
+	emu := vt.NewSafeEmulator(tw.width, tw.height)
+
+	tw.pty = ptmx
+	tw.cmd = cmd
+	tw.emu = emu
+	tw.cursorVisible = true
 
 	// Forward anything the emulator writes to its response pipe — terminal
 	// query replies *and* key bytes from SendKey — into the shell PTY.
@@ -77,26 +108,26 @@ func readPTY(f *os.File) tea.Cmd {
 		buf := make([]byte, 4096)
 		n, err := f.Read(buf)
 		if err != nil {
-			return termClosedMsg{err: err}
+			return TermClosedMsg{err: err}
 		}
-		return termOutputMsg(buf[:n])
+		return TermOutputMsg(buf[:n])
 	}
 }
 
 func (tw *TermWindow) Update(msg tea.Msg) (*TermWindow, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		tw.resize(msg.Width, msg.Height)
+		tw.Resize(msg.Width, msg.Height)
 		return tw, nil
 
-	case termOutputMsg:
+	case TermOutputMsg:
 		if tw.closed {
 			return tw, nil
 		}
 		_, _ = tw.emu.Write(msg)
 		return tw, readPTY(tw.pty)
 
-	case termClosedMsg:
+	case TermClosedMsg:
 		tw.closed = true
 		tw.err = msg.err
 		return tw, tea.Quit
@@ -119,13 +150,26 @@ func (tw *TermWindow) Update(msg tea.Msg) (*TermWindow, tea.Cmd) {
 	return tw, nil
 }
 
-func (tw *TermWindow) resize(width, height int) {
+func (tw *TermWindow) Resize(width, height int) {
 	tw.width, tw.height = width, height
 	tw.emu.Resize(width, height)
 	_ = pty.Setsize(tw.pty, &pty.Winsize{
 		Rows: uint16(height),
 		Cols: uint16(width),
 	})
+}
+
+func (tw *TermWindow) getSizeDefault() (width, height int) {
+	var err error
+	tw.width, tw.height, err = term.GetSize(os.Stdout.Fd())
+	if err != nil {
+		return 80, 24
+	}
+	return tw.width, tw.height
+}
+
+func (tw *TermWindow) GetSizeCurrent() (width, height int) {
+	return tw.width, tw.height
 }
 
 func (tw *TermWindow) Close() {
