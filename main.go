@@ -20,8 +20,8 @@ type model struct {
 func initialModel() model {
 	withCommand := terminal.OptionWithCommand("zsh")
 	withTitle := terminal.OptionWithTitle("Terminal Window")
-	tw1, cmd1 := terminal.NewTermWindow(withCommand, withTitle)
-	tw2, cmd2 := terminal.NewTermWindow(withCommand, withTitle)
+	tw1, cmd1 := terminal.NewTermWindow(1, withCommand, withTitle)
+	tw2, cmd2 := terminal.NewTermWindow(2, withCommand, withTitle)
 
 	return model{
 		focusedTerminal: 0,
@@ -46,14 +46,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 	case tea.WindowSizeMsg:
-		for _, tw := range m.terminals {
-			tw.Resize(msg.Width/len(m.terminals), msg.Height)
+		for i, terminal := range m.terminals {
+			terminal.Resize(msg.Width/len(m.terminals), msg.Height)
+			m.terminals[i] = terminal
 		}
 		return m, nil
 	case tea.EnvMsg,
 		tea.ColorProfileMsg,
-		tea.ModeReportMsg,
-		terminal.TermOutputMsg:
+		tea.ModeReportMsg:
+		// terminal.TermOutputMsg:
 		cmds := make([]tea.Cmd, len(m.terminals))
 		for i, tw := range m.terminals {
 			updated, cmd := tw.Update(msg)
@@ -61,8 +62,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds[i] = cmd
 		}
 		return m, tea.Batch(cmds...)
+
+	case terminal.TermOutputMsg:
+		for i, tw := range m.terminals {
+			if tw.ID() == msg.ID {
+				updated, cmd := tw.Update(msg)
+				m.terminals[i] = updated
+				return m, cmd
+			}
+		}
+		return m, nil
+
 	case terminal.TermClosedMsg:
 		for i, tw := range m.terminals {
+			if tw.ID() != msg.ID {
+				continue
+			}
 			updated, cmd := tw.Update(msg)
 			m.terminals[i] = updated
 			if cmd != nil {

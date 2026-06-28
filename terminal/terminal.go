@@ -17,6 +17,7 @@ type TermWindow struct {
 	cmd *exec.Cmd
 	emu *vt.SafeEmulator
 
+	id            int
 	width, height int
 	Title         string
 	cursorVisible bool
@@ -26,8 +27,14 @@ type TermWindow struct {
 }
 
 type (
-	TermOutputMsg struct{ data []byte }
-	TermClosedMsg struct{ err error }
+	TermOutputMsg struct {
+		ID   int
+		Data []byte // Not used anywhere
+	}
+	TermClosedMsg struct {
+		ID  int
+		Err error
+	}
 )
 
 type Option func(*TermWindow)
@@ -51,8 +58,8 @@ var OptionWithTitle = func(title string) Option {
 	}
 }
 
-func NewTermWindow(opts ...Option) (*TermWindow, tea.Cmd) {
-	tw := &TermWindow{}
+func NewTermWindow(id int, opts ...Option) (*TermWindow, tea.Cmd) {
+	tw := &TermWindow{id: id}
 
 	for _, opt := range opts {
 		opt(tw)
@@ -63,6 +70,11 @@ func NewTermWindow(opts ...Option) (*TermWindow, tea.Cmd) {
 		if tw.command == "" {
 			tw.command = "/bin/sh"
 		}
+	}
+
+	if tw.width == 0 || tw.height == 0 {
+		w, h := tw.getSizeDefault()
+		tw.width, tw.height = w, h
 	}
 
 	cmd := exec.Command(tw.command)
@@ -108,10 +120,10 @@ func (tw *TermWindow) ptyToTerminalView() tea.Cmd {
 		buf := make([]byte, 4096)
 		n, err := tw.pty.Read(buf)
 		if err != nil {
-			return TermClosedMsg{err: err}
+			return TermClosedMsg{ID: tw.id, Err: err}
 		}
 		_, _ = tw.emu.Write(buf[:n])
-		return TermOutputMsg{data: buf[:n]}
+		return TermOutputMsg{ID: tw.id, Data: buf[:n]}
 	}
 }
 
@@ -130,7 +142,7 @@ func (tw *TermWindow) Update(msg tea.Msg) (*TermWindow, tea.Cmd) {
 
 	case TermClosedMsg:
 		tw.closed = true
-		tw.err = msg.err
+		tw.err = msg.Err
 		return tw, tea.Quit
 
 	case tea.KeyPressMsg:
@@ -195,7 +207,7 @@ func (tw *TermWindow) View() tea.View {
 		return tea.NewView("shell exited")
 	}
 
-	var v tea.View
+	v := tea.NewView("")
 	if tw.emu == nil {
 		v.SetContent("")
 		return v
@@ -213,4 +225,8 @@ func (tw *TermWindow) View() tea.View {
 	}
 
 	return v
+}
+
+func (tw *TermWindow) ID() int {
+	return tw.id
 }
