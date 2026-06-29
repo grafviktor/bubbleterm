@@ -11,28 +11,31 @@ import (
 	"github.com/charmbracelet/x/term"
 )
 
+type SplitMode string
+
+const (
+	SplitModeHorizontal SplitMode = "horizontal"
+	SplitModeVertical   SplitMode = "vertical"
+)
+
 type model struct {
 	focusedTerminal int
 	terminals       []*terminal.TermWindow
 	init            tea.Cmd
+	splitMode       SplitMode
 }
 
 func initialModel() model {
-	width, height, err := term.GetSize(os.Stdout.Fd())
-	if err != nil {
-		width, height = 80, 24
-	}
-
 	withCommand := terminal.OptionWithCommand("zsh")
 	withTitle := terminal.OptionWithTitle("Terminal Window")
-	withSize := terminal.OptionWithInitialSize(width/2, height)
-	tw1, cmd1 := terminal.NewTermWindow(0, withSize, withCommand, withTitle)
-	tw2, cmd2 := terminal.NewTermWindow(1, withSize, withCommand, withTitle)
+	tw1, cmd1 := terminal.NewTermWindow(0, withCommand, withTitle)
+	tw2, cmd2 := terminal.NewTermWindow(1, withCommand, withTitle)
 
 	return model{
 		focusedTerminal: 1,
 		terminals:       []*terminal.TermWindow{tw1, tw2},
 		init:            tea.Batch(cmd1, cmd2),
+		splitMode:       SplitModeHorizontal,
 	}
 }
 
@@ -55,17 +58,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.focusedTerminal = (m.focusedTerminal + 1) % len(m.terminals)
 			return m, nil
 		}
-	case tea.WindowSizeMsg:
-		cmds := make([]tea.Cmd, len(m.terminals))
-		for i, tw := range m.terminals {
-			updated, cmd := tw.Update(tea.WindowSizeMsg{
-				Width:  msg.Width / len(m.terminals),
-				Height: msg.Height,
-			})
-			m.terminals[i] = updated
-			cmds[i] = cmd
+		if msg.String() == "ctrl+n" {
+			if m.splitMode == SplitModeHorizontal {
+				m.splitMode = SplitModeVertical
+			} else {
+				m.splitMode = SplitModeHorizontal
+			}
+
+			return m.requestResize()
 		}
-		return m, tea.Batch(cmds...)
+	case tea.WindowSizeMsg:
+		return m.requestResize()
 	case tea.EnvMsg,
 		tea.ColorProfileMsg,
 		tea.ModeReportMsg:
@@ -120,7 +123,7 @@ func (m model) View() tea.View {
 	}
 
 	var views []string
-	var cursor *tea.Cursor
+	var cursor tea.Cursor
 
 	for i, tw := range m.terminals {
 		tv := tw.View()
@@ -130,24 +133,69 @@ func (m model) View() tea.View {
 			continue
 		}
 
-		c := *tv.Cursor
-		// TODO: hack
-		w := 0
-		if tw.ID() != 0 {
-			w, _ = tw.GetSizeCurrent()
-		}
-		c.X += w
-		// for j := 0; j < i; j++ {
-		// 	w, _ := m.terminals[j].GetSizeCurrent()
-		// 	c.X += w
-		// }
-		cursor = &c
+		cursor = m.getCursor(tv)
 	}
 
-	v := tea.NewView(lipgloss.JoinHorizontal(lipgloss.Top, views...))
+	var v tea.View
+	if m.splitMode == SplitModeVertical {
+		v = tea.NewView(lipgloss.JoinVertical(lipgloss.Top, views...))
+	} else {
+		v = tea.NewView(lipgloss.JoinHorizontal(lipgloss.Top, views...))
+	}
+
 	v.AltScreen = true
-	v.Cursor = cursor
+	v.Cursor = &cursor
 	return v
+}
+
+func (m model) requestResize() (tea.Model, tea.Cmd) {
+	cmds := make([]tea.Cmd, len(m.terminals))
+	for i, tw := range m.terminals {
+		width, height := m.getSize()
+		updated, cmd := tw.Update(tea.WindowSizeMsg{
+			Width:  width,
+			Height: height,
+		})
+		m.terminals[i] = updated
+		cmds[i] = cmd
+	}
+	return m, tea.Batch(cmds...)
+}
+
+func (m model) getCursor(terminal tea.View) tea.Cursor {
+	c := *terminal.Cursor
+	w := 0
+	h := 0
+	if m.focusedTerminal != 0 {
+		w, h = m.terminals[m.focusedTerminal].GetSizeCurrent()
+	}
+
+	// TODO: this is a hacky way to get a cursor position. Works only because both terminals have the same width or height.
+	switch m.splitMode {
+	case SplitModeHorizontal:
+		c.X += w
+	case SplitModeVertical:
+		c.Y += h
+	}
+
+	return c
+}
+
+func (m model) getSize() (width, height int) {
+	width, height, err := term.GetSize(os.Stdout.Fd())
+	if err != nil {
+		width, height = 80, 24
+	}
+
+	nTerminals := len(m.terminals)
+	switch m.splitMode {
+	case SplitModeHorizontal:
+		return width / nTerminals, height
+	case SplitModeVertical:
+		return width, height / nTerminals
+	default:
+		return width, height
+	}
 }
 
 func main() {
