@@ -29,8 +29,7 @@ type TermWindow struct {
 
 type (
 	TermOutputMsg struct {
-		ID   int
-		Data []byte // Not used anywhere
+		ID int
 	}
 	TermClosedMsg struct {
 		ID  int
@@ -38,7 +37,7 @@ type (
 	}
 )
 
-func NewTermWindow(id int, opts ...Option) (*TermWindow, tea.Cmd) {
+func New(id int, opts ...Option) (*TermWindow, tea.Cmd) {
 	tw := &TermWindow{id: id}
 
 	for _, opt := range opts {
@@ -103,7 +102,7 @@ func (tw *TermWindow) ptyToTerminalView() tea.Cmd {
 			return TermClosedMsg{ID: tw.id, Err: err}
 		}
 		_, _ = tw.emu.Write(buf[:n])
-		return TermOutputMsg{ID: tw.id, Data: buf[:n]}
+		return TermOutputMsg{ID: tw.id}
 	}
 }
 
@@ -195,7 +194,7 @@ func (tw *TermWindow) View() tea.View {
 		return v
 	}
 
-	// It's required to re-calculate width with every update.
+	// It's required to re-calculate width and height with every update.
 	content := lipgloss.NewStyle().
 		Width(tw.width).
 		Height(tw.height).
