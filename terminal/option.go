@@ -14,9 +14,3 @@ var OptionWithInitialSize = func(width, height int) Option {
 		tw.height = height
 	}
 }
-
-var OptionWithTitle = func(title string) Option {
-	return func(tw *TermWindow) {
-		tw.Title = title
-	}
-}

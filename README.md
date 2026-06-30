@@ -16,9 +16,23 @@ Minimal proof-of-concept terminal split viewer that embeds two shell sessions in
 go run main.go
 ```
 
+If running from VS Code, make sure to use integrated terminal. VS Code config example:
+
+```json
+{
+  "configurations": [
+    {
+      ...
+      "console": "integratedTerminal"
+    }
+  ]
+}
+```
+
 ## Limitations and "features" ##
 
+* Does not support Windows (at least yet)
 * Only 2-pane layout is supported.
 * In horizontal mode you cannot select text from a single pane only.
 * If close one of the terminals, the application will exit.
-* Possible other issues...
+* Possibly other issues...

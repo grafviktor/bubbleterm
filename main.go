@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"os"
 
 	"terminal-x-bubbletea/manager"
@@ -12,14 +12,12 @@ import (
 
 func main() {
 	if !term.IsTerminal(os.Stdout.Fd()) {
-		fmt.Fprintln(os.Stderr, "this example requires a real terminal")
-		os.Exit(1)
+		log.Fatal("the application requires a real terminal")
 	}
 
-	p := tea.NewProgram(manager.New())
+	p := tea.NewProgram(manager.New(2))
 
 	if _, err := p.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("failed to run program: %v", err)
 	}
 }

@@ -1,7 +1,6 @@
 package terminal
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 
@@ -20,24 +19,17 @@ type TermWindow struct {
 
 	id            int
 	width, height int
-	Title         string
 	cursorVisible bool
 	closed        bool
-	err           error
 	command       string
 }
 
 type (
-	TermOutputMsg struct {
-		ID int
-	}
-	TermClosedMsg struct {
-		ID  int
-		Err error
-	}
+	TermOutputMsg struct{ ID int }
+	TermClosedMsg struct{ ID int }
 )
 
-func New(id int, opts ...Option) (*TermWindow, tea.Cmd) {
+func New(id int, opts ...Option) (*TermWindow, tea.Cmd, error) {
 	tw := &TermWindow{id: id}
 
 	for _, opt := range opts {
@@ -64,10 +56,15 @@ func New(id int, opts ...Option) (*TermWindow, tea.Cmd) {
 		Cols: uint16(tw.width),
 	})
 	if err != nil {
-		return &TermWindow{width: tw.width, height: tw.height, closed: true, err: err}, nil
+		return &TermWindow{width: tw.width, height: tw.height, closed: true}, nil, err
 	}
 
 	emu := vt.NewSafeEmulator(tw.width, tw.height)
+	emu.SetCallbacks(vt.Callbacks{
+		CursorVisibility: func(visible bool) {
+			tw.cursorVisible = visible
+		},
+	})
 
 	tw.pty = ptmx
 	tw.cmd = cmd
@@ -78,7 +75,7 @@ func New(id int, opts ...Option) (*TermWindow, tea.Cmd) {
 	// query replies *and* key bytes from SendKey — into the shell PTY.
 	go tw.terminalViewToPty()
 
-	return tw, tw.ptyToTerminalView()
+	return tw, tw.ptyToTerminalView(), nil
 }
 
 func (tw *TermWindow) terminalViewToPty() {
@@ -99,7 +96,7 @@ func (tw *TermWindow) ptyToTerminalView() tea.Cmd {
 		buf := make([]byte, 4096)
 		n, err := tw.pty.Read(buf)
 		if err != nil {
-			return TermClosedMsg{ID: tw.id, Err: err}
+			return TermClosedMsg{ID: tw.id}
 		}
 		_, _ = tw.emu.Write(buf[:n])
 		return TermOutputMsg{ID: tw.id}
@@ -121,11 +118,6 @@ func (tw *TermWindow) Update(msg tea.Msg) (*TermWindow, tea.Cmd) {
 		}
 		return tw, tw.ptyToTerminalView()
 
-	case TermClosedMsg:
-		tw.closed = true
-		tw.err = msg.Err
-		return tw, tea.Quit
-
 	case tea.KeyPressMsg:
 		if tw.closed {
 			return tw, nil
@@ -145,6 +137,18 @@ func (tw *TermWindow) Update(msg tea.Msg) (*TermWindow, tea.Cmd) {
 }
 
 func (tw *TermWindow) resize(width, height int) {
+	if tw.emu == nil || tw.pty == nil {
+		return
+	}
+
+	if width < 5 {
+		width = 5
+	}
+
+	if height < 5 {
+		height = 5
+	}
+
 	tw.width, tw.height = width, height
 	tw.emu.Resize(width, height)
 	_ = pty.Setsize(tw.pty, &pty.Winsize{
@@ -181,9 +185,6 @@ func (tw *TermWindow) Close() {
 }
 
 func (tw *TermWindow) View() tea.View {
-	if tw.err != nil {
-		return tea.NewView(fmt.Sprintf("terminal error: %v", tw.err))
-	}
 	if tw.closed {
 		return tea.NewView("shell exited")
 	}
@@ -204,10 +205,6 @@ func (tw *TermWindow) View() tea.View {
 	if tw.cursorVisible {
 		pos := tw.emu.CursorPosition()
 		v.Cursor = tea.NewCursor(pos.X, pos.Y)
-	}
-
-	if tw.Title != "" {
-		v.WindowTitle = tw.Title
 	}
 
 	return v

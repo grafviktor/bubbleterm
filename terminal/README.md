@@ -1,5 +1,7 @@
 ## KeyPressMsg flow ##
 
+Just an explanation of what's happening when a user types in a key and how it reaches the real terminal.
+
 ### 1. Write to the shell ###
 
 * User types a character and Bubble Tea generates a corresponding tea.KeyPressMsg
