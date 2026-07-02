@@ -41,4 +41,4 @@ If running from VS Code, make sure to use integrated terminal. VS Code config ex
 
 ## 5. License ##
 
-MIT — see [LICENSE](LICENSE).
+MIT - see [LICENSE](LICENSE).
