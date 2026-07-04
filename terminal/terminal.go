@@ -2,10 +2,10 @@ package terminal
 
 import (
 	"context"
-	"log"
 	"os"
 	"os/exec"
 	"runtime"
+	"syscall"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -14,7 +14,7 @@ import (
 	"github.com/charmbracelet/x/xpty"
 )
 
-// TermWindow embeds a shell in Bubble Tea using x/vt for emulation and creack/pty for the pseudo-terminal.
+// TermWindow embeds a shell in Bubble Tea using x/vt for emulation and xpty for the pseudo-terminal.
 type TermWindow struct {
 	pty xpty.Pty
 	cmd *exec.Cmd
@@ -61,6 +61,16 @@ func New(id int, opts ...Option) (*TermWindow, tea.Cmd, error) {
 	// Init example taken from https://github.com/charmbracelet/freeze/blob/main/pty.go
 	cmd := exec.Command(tw.command)
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
+	if runtime.GOOS != "windows" {
+		// Should match creack/pty.StartWithSize behavior. See here:
+		// https://github.com/creack/pty/blob/v1.1.24/start.go#L18-L24
+		// Without those attrs, SIGWINCH is not delivered to the shell on resize
+		// and resize does not work properly.
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			Setsid:  true,
+			Setctty: true,
+		}
+	}
 
 	pty, err := xpty.NewPty(tw.width, tw.height)
 	if err != nil {
@@ -123,7 +133,10 @@ func (tw *TermWindow) Update(msg tea.Msg) (*TermWindow, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		tw.resize(msg.Width, msg.Height)
-		return tw, nil
+		if tw.closed {
+			return tw, nil
+		}
+		return tw, tw.ptyToTerminalView()
 
 	case TermOutputMsg:
 		if tw.id != msg.ID {
@@ -167,10 +180,7 @@ func (tw *TermWindow) resize(width, height int) {
 
 	tw.width, tw.height = width, height
 	tw.emu.Resize(width, height)
-	err := tw.pty.Resize(width, height)
-	if err != nil {
-		log.Println("error resizing pty:", err)
-	}
+	_ = tw.pty.Resize(width, height)
 }
 
 func (tw *TermWindow) getSizeDefault() (width, height int) {
