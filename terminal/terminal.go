@@ -4,8 +4,6 @@ import (
 	"context"
 	"os"
 	"os/exec"
-	"runtime"
-	"syscall"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -39,39 +37,18 @@ func New(id int, opts ...Option) (*TermWindow, tea.Cmd, error) {
 		opt(tw)
 	}
 
-	if tw.command == "" {
-		if runtime.GOOS == "windows" {
-			tw.command = os.Getenv("COMSPEC")
-			if tw.command == "" {
-				tw.command = `C:\Windows\System32\cmd.exe`
-			}
-		} else {
-			tw.command = os.Getenv("SHELL")
-			if tw.command == "" {
-				tw.command = "/bin/sh"
-			}
-		}
-	}
-
 	if tw.width == 0 || tw.height == 0 {
 		w, h := tw.getSizeDefault()
 		tw.width, tw.height = w, h
 	}
 
-	// Init example taken from https://github.com/charmbracelet/freeze/blob/main/pty.go
-	cmd := exec.Command(tw.command)
-	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
-	if runtime.GOOS != "windows" {
-		// Should match creack/pty.StartWithSize behavior. See here:
-		// https://github.com/creack/pty/blob/v1.1.24/start.go#L18-L24
-		// Without those attrs, SIGWINCH is not delivered to the shell on resize
-		// and resize does not work properly.
-		cmd.SysProcAttr = &syscall.SysProcAttr{
-			Setsid:  true,
-			Setctty: true,
-		}
+	if tw.command == "" {
+		tw.command = getShellPath()
 	}
 
+	cmd := buildCommand(tw.command)
+
+	// Init example taken from https://github.com/charmbracelet/freeze/blob/main/pty.go
 	pty, err := xpty.NewPty(tw.width, tw.height)
 	if err != nil {
 		return &TermWindow{width: tw.width, height: tw.height, closed: true}, nil, err
