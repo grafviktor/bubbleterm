@@ -1,19 +1,22 @@
 package terminal
 
 import (
+	"context"
+	"log"
 	"os"
 	"os/exec"
+	"runtime"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/term"
 	"github.com/charmbracelet/x/vt"
-	"github.com/creack/pty"
+	"github.com/charmbracelet/x/xpty"
 )
 
 // TermWindow embeds a shell in Bubble Tea using x/vt for emulation and creack/pty for the pseudo-terminal.
 type TermWindow struct {
-	pty *os.File
+	pty xpty.Pty
 	cmd *exec.Cmd
 	emu *vt.SafeEmulator
 
@@ -37,9 +40,16 @@ func New(id int, opts ...Option) (*TermWindow, tea.Cmd, error) {
 	}
 
 	if tw.command == "" {
-		tw.command = os.Getenv("SHELL")
-		if tw.command == "" {
-			tw.command = "/bin/sh"
+		if runtime.GOOS == "windows" {
+			tw.command = os.Getenv("COMSPEC")
+			if tw.command == "" {
+				tw.command = `C:\Windows\System32\cmd.exe`
+			}
+		} else {
+			tw.command = os.Getenv("SHELL")
+			if tw.command == "" {
+				tw.command = "/bin/sh"
+			}
 		}
 	}
 
@@ -48,15 +58,21 @@ func New(id int, opts ...Option) (*TermWindow, tea.Cmd, error) {
 		tw.width, tw.height = w, h
 	}
 
+	// Init example taken from https://github.com/charmbracelet/freeze/blob/main/pty.go
 	cmd := exec.Command(tw.command)
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
 
-	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{
-		Rows: uint16(tw.height),
-		Cols: uint16(tw.width),
-	})
+	pty, err := xpty.NewPty(tw.width, tw.height)
 	if err != nil {
 		return &TermWindow{width: tw.width, height: tw.height, closed: true}, nil, err
+	}
+
+	if err := pty.Start(cmd); err != nil {
+		return &TermWindow{width: tw.width, height: tw.height, closed: true}, nil, err
+	}
+
+	if up, ok := pty.(*xpty.UnixPty); ok {
+		_ = up.Slave().Close()
 	}
 
 	emu := vt.NewSafeEmulator(tw.width, tw.height)
@@ -66,7 +82,7 @@ func New(id int, opts ...Option) (*TermWindow, tea.Cmd, error) {
 		},
 	})
 
-	tw.pty = ptmx
+	tw.pty = pty
 	tw.cmd = cmd
 	tw.emu = emu
 	tw.cursorVisible = true
@@ -151,10 +167,10 @@ func (tw *TermWindow) resize(width, height int) {
 
 	tw.width, tw.height = width, height
 	tw.emu.Resize(width, height)
-	_ = pty.Setsize(tw.pty, &pty.Winsize{
-		Rows: uint16(height),
-		Cols: uint16(width),
-	})
+	err := tw.pty.Resize(width, height)
+	if err != nil {
+		log.Println("error resizing pty:", err)
+	}
 }
 
 func (tw *TermWindow) getSizeDefault() (width, height int) {
@@ -176,7 +192,7 @@ func (tw *TermWindow) Close() {
 	}
 	if tw.cmd != nil && tw.cmd.Process != nil {
 		_ = tw.cmd.Process.Kill()
-		_ = tw.cmd.Wait()
+		_ = xpty.WaitProcess(context.Background(), tw.cmd)
 	}
 	if tw.pty != nil {
 		_ = tw.pty.Close()
