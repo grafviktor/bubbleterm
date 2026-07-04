@@ -35,7 +35,6 @@ If running from VS Code, make sure to use integrated terminal. VS Code config ex
 
 ## 4. Limitations and "features" ##
 
-* Does not support Windows (at least yet).
 * In horizontal mode you cannot select text from a single pane only.
 * If close one of the terminals, the application will exit.
 

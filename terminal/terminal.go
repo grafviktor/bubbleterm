@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"context"
 	"os"
 	"os/exec"
 
@@ -8,12 +9,12 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/term"
 	"github.com/charmbracelet/x/vt"
-	"github.com/creack/pty"
+	"github.com/charmbracelet/x/xpty"
 )
 
-// TermWindow embeds a shell in Bubble Tea using x/vt for emulation and creack/pty for the pseudo-terminal.
+// TermWindow embeds a shell in Bubble Tea using x/vt for emulation and xpty for the pseudo-terminal.
 type TermWindow struct {
-	pty *os.File
+	pty xpty.Pty
 	cmd *exec.Cmd
 	emu *vt.SafeEmulator
 
@@ -36,27 +37,29 @@ func New(id int, opts ...Option) (*TermWindow, tea.Cmd, error) {
 		opt(tw)
 	}
 
-	if tw.command == "" {
-		tw.command = os.Getenv("SHELL")
-		if tw.command == "" {
-			tw.command = "/bin/sh"
-		}
-	}
-
 	if tw.width == 0 || tw.height == 0 {
 		w, h := tw.getSizeDefault()
 		tw.width, tw.height = w, h
 	}
 
-	cmd := exec.Command(tw.command)
-	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
+	if tw.command == "" {
+		tw.command = getShellPath()
+	}
 
-	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{
-		Rows: uint16(tw.height),
-		Cols: uint16(tw.width),
-	})
+	cmd := buildCommand(tw.command)
+
+	// Init example taken from https://github.com/charmbracelet/freeze/blob/main/pty.go
+	pty, err := xpty.NewPty(tw.width, tw.height)
 	if err != nil {
 		return &TermWindow{width: tw.width, height: tw.height, closed: true}, nil, err
+	}
+
+	if err := pty.Start(cmd); err != nil {
+		return &TermWindow{width: tw.width, height: tw.height, closed: true}, nil, err
+	}
+
+	if up, ok := pty.(*xpty.UnixPty); ok {
+		_ = up.Slave().Close()
 	}
 
 	emu := vt.NewSafeEmulator(tw.width, tw.height)
@@ -66,7 +69,7 @@ func New(id int, opts ...Option) (*TermWindow, tea.Cmd, error) {
 		},
 	})
 
-	tw.pty = ptmx
+	tw.pty = pty
 	tw.cmd = cmd
 	tw.emu = emu
 	tw.cursorVisible = true
@@ -75,7 +78,11 @@ func New(id int, opts ...Option) (*TermWindow, tea.Cmd, error) {
 	// query replies *and* key bytes from SendKey — into the shell PTY.
 	go tw.terminalViewToPty()
 
-	return tw, tw.ptyToTerminalView(), nil
+	cmds := []tea.Cmd{
+		tw.ptyToTerminalView(),
+		tw.waitForProcess(),
+	}
+	return tw, tea.Batch(cmds...), nil
 }
 
 func (tw *TermWindow) terminalViewToPty() {
@@ -103,11 +110,25 @@ func (tw *TermWindow) ptyToTerminalView() tea.Cmd {
 	}
 }
 
+func (tw *TermWindow) waitForProcess() tea.Cmd {
+	return func() tea.Msg {
+		if tw.cmd == nil {
+			return nil
+		}
+
+		_ = xpty.WaitProcess(context.Background(), tw.cmd)
+		return TermClosedMsg{ID: tw.id}
+	}
+}
+
 func (tw *TermWindow) Update(msg tea.Msg) (*TermWindow, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		tw.resize(msg.Width, msg.Height)
-		return tw, nil
+		if tw.closed {
+			return tw, nil
+		}
+		return tw, tw.ptyToTerminalView()
 
 	case TermOutputMsg:
 		if tw.id != msg.ID {
@@ -151,10 +172,7 @@ func (tw *TermWindow) resize(width, height int) {
 
 	tw.width, tw.height = width, height
 	tw.emu.Resize(width, height)
-	_ = pty.Setsize(tw.pty, &pty.Winsize{
-		Rows: uint16(height),
-		Cols: uint16(width),
-	})
+	_ = tw.pty.Resize(width, height)
 }
 
 func (tw *TermWindow) getSizeDefault() (width, height int) {
@@ -176,7 +194,7 @@ func (tw *TermWindow) Close() {
 	}
 	if tw.cmd != nil && tw.cmd.Process != nil {
 		_ = tw.cmd.Process.Kill()
-		_ = tw.cmd.Wait()
+		_ = xpty.WaitProcess(context.Background(), tw.cmd)
 	}
 	if tw.pty != nil {
 		_ = tw.pty.Close()
