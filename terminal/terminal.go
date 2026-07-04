@@ -78,7 +78,11 @@ func New(id int, opts ...Option) (*TermWindow, tea.Cmd, error) {
 	// query replies *and* key bytes from SendKey — into the shell PTY.
 	go tw.terminalViewToPty()
 
-	return tw, tw.ptyToTerminalView(), nil
+	cmds := []tea.Cmd{
+		tw.ptyToTerminalView(),
+		tw.waitForProcess(),
+	}
+	return tw, tea.Batch(cmds...), nil
 }
 
 func (tw *TermWindow) terminalViewToPty() {
@@ -103,6 +107,17 @@ func (tw *TermWindow) ptyToTerminalView() tea.Cmd {
 		}
 		_, _ = tw.emu.Write(buf[:n])
 		return TermOutputMsg{ID: tw.id}
+	}
+}
+
+func (tw *TermWindow) waitForProcess() tea.Cmd {
+	return func() tea.Msg {
+		if tw.cmd == nil {
+			return nil
+		}
+
+		_ = xpty.WaitProcess(context.Background(), tw.cmd)
+		return TermClosedMsg{ID: tw.id}
 	}
 }
 
