@@ -4,7 +4,7 @@ Bubbleterm is a terminal component which is designed to work with [Bubble Tea](h
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/grafviktor/bubbleterm/develop/LICENSE)
 
-## 1. Functinal demo ##
+## 1. Functional demo ##
 
 This demo represents routing PTY I/O into x/vt emulators, rendering with [bubbletea](https://github.com/charmbracelet/bubbletea) library.
 
