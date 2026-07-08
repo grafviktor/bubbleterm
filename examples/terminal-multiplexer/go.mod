@@ -1,19 +1,19 @@
-module github.com/grafviktor/bubbleterm/examples/terminal-multiplexer
+module github.com/grafviktor/termview/examples/terminal-multiplexer
 
 go 1.25.0
 
-replace github.com/grafviktor/bubbleterm => ../../
+replace github.com/grafviktor/termview => ../../
 
 require (
-	charm.land/bubbletea/v2 v2.0.8
-	charm.land/lipgloss/v2 v2.0.5
+	charm.land/bubbletea/v2 v2.0.7
+	charm.land/lipgloss/v2 v2.0.4
 	github.com/charmbracelet/x/term v0.2.2
-	github.com/grafviktor/bubbleterm v0.0.0-00010101000000-000000000000
+	github.com/grafviktor/termview v0.0.0-00010101000000-000000000000
 )
 
 require (
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
-	github.com/charmbracelet/ultraviolet v0.0.0-20260703014108-f5a850f9c2b7 // indirect
+	github.com/charmbracelet/ultraviolet v0.0.0-20260615092913-2399af76d5b1 // indirect
 	github.com/charmbracelet/x/ansi v0.11.7 // indirect
 	github.com/charmbracelet/x/conpty v0.1.1 // indirect
 	github.com/charmbracelet/x/errors v0.0.0-20240508181413-e8d8b6e2de86 // indirect

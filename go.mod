@@ -1,4 +1,4 @@
-module github.com/grafviktor/bubbleterm
+module github.com/grafviktor/termview
 
 go 1.25.0
 

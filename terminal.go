@@ -1,4 +1,4 @@
-package bubbleterm
+package termview
 
 import (
 	"context"

@@ -1,8 +1,8 @@
-# Bubbleterm - TUI terminal component for Go #
+# Termview - TUI terminal component for Go #
 
-Bubbleterm is a terminal component which is designed to work with [Bubble Tea](https://github.com/charmbracelet/bubbletea) v2. It embeds a real shell session in your app using the same model/update/view pattern as other [Charm Bracelet](https://github.com/charmbracelet) components.
+Termview is a terminal component which is designed to work with [Bubble Tea](https://github.com/charmbracelet/bubbletea) v2. It embeds a real shell session in your app using the same model/update/view pattern as other [Charm Bracelet](https://github.com/charmbracelet) components.
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/grafviktor/bubbleterm/develop/LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/grafviktor/termview/develop/LICENSE)
 
 ## 1. Functional demo ##
 
@@ -13,17 +13,17 @@ This demo represents routing PTY I/O into x/vt emulators, rendering with [bubble
 ## 2. Installation and usage ##
 
 ```bash
-go get github.com/grafviktor/bubbleterm@v0.1.0
+go get github.com/grafviktor/termview@v0.1.0
 ```
 
 ```go
-import "github.com/grafviktor/bubbleterm"
+import "github.com/grafviktor/termview"
 
 ...
-term, err := bubbleterm.New(
-    bubbleterm.WithCommand("/bin/bash"),
-    bubbleterm.WithInitialWidth(80),
-    bubbleterm.WithInitialHeight(24),
+term, err := termview.New(
+    termview.WithCommand("/bin/bash"),
+    termview.WithInitialWidth(80),
+    termview.WithInitialHeight(24),
 )
 ```
 

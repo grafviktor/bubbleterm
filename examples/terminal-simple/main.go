@@ -6,21 +6,21 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/term"
-	"github.com/grafviktor/bubbleterm"
+	"github.com/grafviktor/termview"
 )
 
 type app struct {
-	term bubbleterm.Model
+	term termview.Model
 }
 
 func (a app) Init() tea.Cmd { return a.term.Init() }
 
 func (a app) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case bubbleterm.OutputMsg, bubbleterm.ClosedMsg:
+	case termview.OutputMsg, termview.ClosedMsg:
 		updated, cmd := a.term.Update(msg)
 		a.term = updated
-		if _, ok := msg.(bubbleterm.ClosedMsg); ok {
+		if _, ok := msg.(termview.ClosedMsg); ok {
 			return a, tea.Quit
 		}
 		return a, cmd
@@ -43,7 +43,7 @@ func main() {
 		log.Fatal("requires a real terminal")
 	}
 
-	t, err := bubbleterm.New(bubbleterm.WithCommand(os.Getenv("SHELL")))
+	t, err := termview.New(termview.WithCommand(os.Getenv("SHELL")))
 	if err != nil {
 		log.Fatal(err)
 	}

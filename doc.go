@@ -1,4 +1,4 @@
-// Package bubbleterm embeds a PTY-backed shell in Bubble Tea programs.
+// Package termview embeds a PTY-backed shell in Bubble Tea programs.
 
 // It provides a terminal model backed by a PTY and x/vt emulator.
 //
@@ -29,4 +29,4 @@
 //   - readShell reads from the PTY and receives the shell output bytes.
 //   - A OutputMsg is created and sent back into Update.
 //   - The output is written to the emulator and rendered in Bubble Tea.
-package bubbleterm
+package termview

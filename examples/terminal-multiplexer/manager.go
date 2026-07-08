@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	"github.com/grafviktor/bubbleterm"
+	"github.com/grafviktor/termview"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -11,7 +11,7 @@ import (
 
 type Manager struct {
 	init            tea.Cmd
-	terminals       []bubbleterm.Model
+	terminals       []termview.Model
 	focusedTerminal int
 	width           int
 	height          int
@@ -19,20 +19,20 @@ type Manager struct {
 }
 
 func New(terminalsCount int) Manager {
-	terminals := []bubbleterm.Model{}
+	terminals := []termview.Model{}
 
 	for i := range terminalsCount {
-		tw, err := bubbleterm.New(
-			bubbleterm.WithCommand("/bin/bash"),
-			bubbleterm.WithInitialWidth(80),
-			bubbleterm.WithInitialHeight(24),
-			bubbleterm.WithClosedMessage("command exited"),
+		tw, err := termview.New(
+			termview.WithCommand("/bin/bash"),
+			termview.WithInitialWidth(80),
+			termview.WithInitialHeight(24),
+			termview.WithClosedMessage("command exited"),
 		)
 		if err != nil {
 			log.Fatalf("failed to start terminal %d: %v", i, err)
 		}
 
-		// Focus the first bubbleterm.
+		// Focus the first termview.
 		if i == 0 {
 			tw = tw.Focus()
 		}
@@ -75,7 +75,7 @@ func (m Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		return m.redraw()
-	case bubbleterm.OutputMsg:
+	case termview.OutputMsg:
 		for i, tw := range m.terminals {
 			if tw.ID() == msg.ID {
 				updated, cmd := tw.Update(msg)
@@ -85,7 +85,7 @@ func (m Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case bubbleterm.ClosedMsg:
+	case termview.ClosedMsg:
 		m.closeTerminals()
 		return m, tea.Quit
 	}
@@ -142,7 +142,7 @@ func (m Manager) View() tea.View {
 	return v
 }
 
-func (m Manager) getCursor(terminal bubbleterm.Model) *tea.Cursor {
+func (m Manager) getCursor(terminal termview.Model) *tea.Cursor {
 	c := terminal.Cursor()
 	if c == nil {
 		return nil

@@ -1,4 +1,4 @@
-package bubbleterm
+package termview
 
 type (
 	OutputMsg struct{ ID int }
