@@ -27,7 +27,7 @@ term, err := bubbleterm.New(
 )
 ```
 
-Also see [examples/terminal-simple](examples/terminal-simple) and [examples/terminal-multiplexer](examples/terminal-multiplexer) for the examples.
+Also see [terminal-simple](examples/terminal-simple) and [terminal-multiplexer](examples/terminal-multiplexer) for the examples.
 
 ## 3. License ##
 
