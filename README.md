@@ -4,9 +4,9 @@ Bubbleterm is a terminal component which is designed to work with [Bubble Tea](h
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/grafviktor/bubbleterm/develop/LICENSE)
 
-## 1. Description ##
+## 1. Functinal demo ##
 
-A re-usable terminal component that can be embedded into a TUI application. This demo represents routing PTY I/O into x/vt emulators, rendering with [bubbletea](https://github.com/charmbracelet/bubbletea) library.
+This demo represents routing PTY I/O into x/vt emulators, rendering with [bubbletea](https://github.com/charmbracelet/bubbletea) library.
 
 ![Two-pane terminal multiplexer demo with focus switching and horizontal/vertical layout toggle](examples/terminal-multiplexer/terminal-multiplexer.gif)
 
