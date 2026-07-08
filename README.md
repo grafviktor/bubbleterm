@@ -1,5 +1,7 @@
 # Bubbleterm - TUI terminal component for Go #
 
+Bubbleterm is a reusable terminal component which is designed to work with [Bubble Tea](https://github.com/charmbracelet/bubbletea) v2. It embeds a real shell session in your app using the same model/update/view pattern as other [Charm Bracelet](https://github.com/charmbracelet) components.
+
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/grafviktor/bubbleterm/develop/LICENSE)
 
 ## 1. Description ##
