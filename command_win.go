@@ -1,6 +1,6 @@
 //go:build windows
 
-package terminal
+package bubbleterm
 
 import (
 	"os"

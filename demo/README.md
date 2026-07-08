@@ -6,4 +6,4 @@ _Created with [VHS](https://github.com/charmbracelet/vhs) utility._
 go install github.com/charmbracelet/vhs@latest
 ```
 
-Use `./build.sh` script to regenerate the demo file.
+Use `./update_demo.sh` script to regenerate the demo file.

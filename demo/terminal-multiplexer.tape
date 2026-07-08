@@ -1,4 +1,4 @@
-Output demo.gif
+Output ../examples/terminal-multiplexer/terminal-multiplexer.gif
 Require echo
 
 Set Shell "bash"
@@ -8,7 +8,12 @@ Set Height 600
 Set Padding 20
 Set LoopOffset 65%
 
-Type "go run ../main.go"
+Hide
+Type "cd ../examples/terminal-multiplexer"
+Enter
+Show
+
+Type "go run ."
 Enter
 Sleep 1500ms
 

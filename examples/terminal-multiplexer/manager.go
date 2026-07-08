@@ -1,9 +1,9 @@
-package manager
+package main
 
 import (
 	"log"
 
-	"terminal-x-bubbletea/terminal"
+	"github.com/grafviktor/bubbleterm"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -11,7 +11,7 @@ import (
 
 type Manager struct {
 	init            tea.Cmd
-	terminals       []*terminal.TermWindow
+	terminals       []bubbleterm.Model
 	focusedTerminal int
 	width           int
 	height          int
@@ -19,38 +19,53 @@ type Manager struct {
 }
 
 func New(terminalsCount int) Manager {
-	terminals := []*terminal.TermWindow{}
-	cmds := []tea.Cmd{}
+	terminals := []bubbleterm.Model{}
 
-	for i := 0; i < terminalsCount; i++ {
-		tw, cmd, err := terminal.New(i)
+	for i := range terminalsCount {
+		tw, err := bubbleterm.New(
+			bubbleterm.WithCommand("/bin/bash"),
+			bubbleterm.WithInitialWidth(80),
+			bubbleterm.WithInitialHeight(24),
+			bubbleterm.WithClosedMessage("command exited"),
+		)
 		if err != nil {
 			log.Fatalf("failed to start terminal %d: %v", i, err)
 		}
+
+		// Focus the first bubbleterm.
+		if i == 0 {
+			tw = tw.Focus()
+		}
 		terminals = append(terminals, tw)
-		cmds = append(cmds, cmd)
 	}
 
 	return Manager{
 		focusedTerminal: 0,
 		terminals:       terminals,
-		init:            tea.Batch(cmds...),
 		verticalView:    false,
 	}
 }
 
 func (m Manager) Init() tea.Cmd {
-	return m.init
+	cmds := make([]tea.Cmd, len(m.terminals))
+	for i, tw := range m.terminals {
+		cmds[i] = tw.Init()
+	}
+
+	return tea.Batch(cmds...)
 }
 
 func (m Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		if msg.String() == "ctrl+q" {
-			return m.closeTerminals()
+			m.closeTerminals()
+			return m, tea.Quit
 		}
 		if msg.String() == "ctrl+w" {
+			m.terminals[m.focusedTerminal] = m.terminals[m.focusedTerminal].Blur()
 			m.focusedTerminal = (m.focusedTerminal + 1) % len(m.terminals)
+			m.terminals[m.focusedTerminal] = m.terminals[m.focusedTerminal].Focus()
 			return m, nil
 		}
 		if msg.String() == "ctrl+n" {
@@ -60,7 +75,7 @@ func (m Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		return m.redraw()
-	case terminal.TermOutputMsg:
+	case bubbleterm.OutputMsg:
 		for i, tw := range m.terminals {
 			if tw.ID() == msg.ID {
 				updated, cmd := tw.Update(msg)
@@ -70,12 +85,13 @@ func (m Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case terminal.TermClosedMsg:
-		return m.closeTerminals()
+	case bubbleterm.ClosedMsg:
+		m.closeTerminals()
+		return m, tea.Quit
 	}
 
 	for i, tw := range m.terminals {
-		if i == m.focusedTerminal {
+		if tw.Focused() {
 			updated, cmd := tw.Update(msg)
 			m.terminals[i] = updated
 			return m, cmd
@@ -95,19 +111,23 @@ func (m Manager) View() tea.View {
 	var views []string
 	var cursor *tea.Cursor
 
-	for i, tw := range m.terminals {
-		tv := tw.View()
-		if i == m.focusedTerminal {
-			views = append(views, focusedStyle.Render(tv.Content))
+	for _, tw := range m.terminals {
+		tv := lipgloss.NewStyle().
+			Width(tw.Width()).
+			Height(tw.Height()).
+			Render(tw.View())
+
+		if tw.Focused() {
+			views = append(views, focusedStyle.Render(tv))
 		} else {
-			views = append(views, paneStyle.Render(tv.Content))
+			views = append(views, paneStyle.Render(tv))
 		}
 
-		if i != m.focusedTerminal || tv.Cursor == nil {
+		if !tw.Focused() {
 			continue
 		}
 
-		cursor = m.getCursor(tv)
+		cursor = m.getCursor(tw)
 	}
 
 	var v tea.View
@@ -122,8 +142,11 @@ func (m Manager) View() tea.View {
 	return v
 }
 
-func (m Manager) getCursor(terminal tea.View) *tea.Cursor {
-	c := *terminal.Cursor
+func (m Manager) getCursor(terminal bubbleterm.Model) *tea.Cursor {
+	c := terminal.Cursor()
+	if c == nil {
+		return nil
+	}
 
 	// The first pane is very simple, we return cursor position relative to the borders of the pane.
 	if m.focusedTerminal == 0 {
@@ -136,7 +159,7 @@ func (m Manager) getCursor(terminal tea.View) *tea.Cursor {
 		c.X += 1
 		c.Y += 1
 
-		return &c
+		return c
 	}
 
 	// For other panes we should calculate borders widths taking into account all previous panes.
@@ -160,7 +183,7 @@ func (m Manager) getCursor(terminal tea.View) *tea.Cursor {
 	 */
 	var prevPanesWidth int
 	for i := 0; i < m.focusedTerminal; i++ {
-		w, h := m.terminals[i].GetSizeCurrent()
+		w, h := m.terminals[i].Width(), m.terminals[i].Height()
 		if m.verticalView {
 			prevPanesWidth += h
 		} else {
@@ -176,7 +199,7 @@ func (m Manager) getCursor(terminal tea.View) *tea.Cursor {
 		c.Y += 1
 	}
 
-	return &c
+	return c
 }
 
 func (m Manager) redraw() (tea.Model, tea.Cmd) {
@@ -224,9 +247,11 @@ func (m Manager) calcTerminalSize() (width, height int) {
 	return width, height
 }
 
-func (m Manager) closeTerminals() (tea.Model, tea.Cmd) {
-	for _, tw := range m.terminals {
-		tw.Close()
+func (m Manager) closeTerminals() {
+	for i := range m.terminals {
+		if m.terminals[i].Closed() {
+			continue
+		}
+		m.terminals[i].Close()
 	}
-	return m, tea.Quit
 }

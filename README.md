@@ -1,43 +1,32 @@
-# Terminal Multiplexer - Proof of concept #
+# Bubbleterm - TUI terminal component for Go #
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/grafviktor/terminal-multiplexer/develop/LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/grafviktor/bubbleterm/develop/LICENSE)
 
 ## 1. Description ##
 
-Minimal proof-of-concept terminal split viewer that embeds two shell sessions in a single TUI window. Demonstrates routing PTY I/O into x/vt emulators, rendering with [bubbletea](https://github.com/charmbracelet/bubbletea) library, and layout switching.
+A re-usable terminal component that can be embedded into a TUI application. This demo represents routing PTY I/O into x/vt emulators, rendering with [bubbletea](https://github.com/charmbracelet/bubbletea) library.
 
-![Two-pane terminal multiplexer demo with focus switching and horizontal/vertical layout toggle](demo/demo.gif)
+![Two-pane terminal multiplexer demo with focus switching and horizontal/vertical layout toggle](examples/terminal-multiplexer/terminal-multiplexer.gif)
 
-## 2. Shortcuts ##
-
-* `ctrl+w` - move focus to next pane
-* `ctrl+n` - switch panes layout
-* `ctrl+q` - close the app
-
-## 3. Run ##
+## 2. Installation and usage ##
 
 ```bash
-go run main.go
+go get github.com/grafviktor/bubbleterm@v0.1.0
 ```
 
-If running from VS Code, make sure to use integrated terminal. VS Code config example:
+```go
+import "github.com/grafviktor/bubbleterm"
 
-```json
-{
-  "configurations": [
-    {
-      ...
-      "console": "integratedTerminal"
-    }
-  ]
-}
+...
+term, err := bubbleterm.New(
+    bubbleterm.WithCommand("/bin/bash"),
+    bubbleterm.WithInitialWidth(80),
+    bubbleterm.WithInitialHeight(24),
+)
 ```
 
-## 4. Limitations and "features" ##
+Also see [examples/terminal-simple](examples/terminal-simple) and [examples/terminal-multiplexer](examples/terminal-multiplexer) for the examples.
 
-* In horizontal mode you cannot select text from a single pane only.
-* If close one of the terminals, the application will exit.
-
-## 5. License ##
+## 3. License ##
 
 MIT - see [LICENSE](LICENSE).

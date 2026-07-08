@@ -1,4 +1,4 @@
-Output demo_windows.gif
+Output ../examples/terminal-multiplexer/terminal-multiplexer-windows.gif
 Require echo
 
 Set FontSize 13
@@ -6,6 +6,11 @@ Set Width 800
 Set Height 600
 Set Padding 20
 Set LoopOffset 65%
+
+Hide
+Type "cd ../examples/terminal-multiplexer"
+Enter
+Show
 
 Type "go run ."
 Enter
