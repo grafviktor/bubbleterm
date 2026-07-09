@@ -1,5 +1,7 @@
 package termview
 
+import "io"
+
 type Option func(*Model)
 
 func WithCommand(cmd string, args ...string) Option {
@@ -21,8 +23,8 @@ func WithInitialHeight(height int) Option {
 	}
 }
 
-func WithClosedMessage(message string) Option {
+func WithStdErr(stdErr io.Writer) Option {
 	return func(tw *Model) {
-		tw.closedMessage = message
+		tw.stdErr = stdErr
 	}
 }

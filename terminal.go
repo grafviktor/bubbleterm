@@ -2,6 +2,7 @@ package termview
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"sync/atomic"
@@ -39,10 +40,10 @@ type Model struct {
 
 	id            int
 	width, height int
-	closedMessage string
 	command       string
 	commandArgs   []string
 	focus         bool
+	stdErr        io.Writer
 }
 
 func New(opts ...Option) (Model, error) {
@@ -61,11 +62,10 @@ func New(opts ...Option) (Model, error) {
 		m.command = getShellPath()
 	}
 
-	if m.closedMessage == "" {
-		m.closedMessage = "not running"
-	}
-
 	cmd := buildCommand(m.command, m.commandArgs...)
+	if m.stdErr != nil {
+		cmd.Stderr = m.stdErr
+	}
 
 	// Init example taken from https://github.com/charmbracelet/freeze/blob/main/pty.go
 	pty, err := xpty.NewPty(m.width, m.height)
@@ -103,11 +103,7 @@ func (m Model) Init() tea.Cmd {
 	// query replies *and* key bytes from SendKey — into the shell PTY.
 	go m.terminalViewToPty()
 
-	cmds := []tea.Cmd{
-		m.ptyToTerminalView(),
-		m.waitForProcess(),
-	}
-	return tea.Batch(cmds...)
+	return m.ptyToTerminalView()
 }
 
 func (m Model) terminalViewToPty() {
@@ -132,22 +128,19 @@ func (m Model) ptyToTerminalView() tea.Cmd {
 	return func() tea.Msg {
 		buf := make([]byte, 4096)
 		n, err := m.pty.Read(buf)
+		if n > 0 {
+			_, _ = m.emu.Write(buf[:n])
+			return OutputMsg{ID: m.id}
+		}
+
 		if err != nil {
+			if m.cmd != nil {
+				_ = xpty.WaitProcess(context.Background(), m.cmd)
+			}
 			return ClosedMsg{ID: m.id}
 		}
-		_, _ = m.emu.Write(buf[:n])
+
 		return OutputMsg{ID: m.id}
-	}
-}
-
-func (m Model) waitForProcess() tea.Cmd {
-	return func() tea.Msg {
-		if m.cmd == nil {
-			return nil
-		}
-
-		_ = xpty.WaitProcess(context.Background(), m.cmd)
-		return ClosedMsg{ID: m.id}
 	}
 }
 
@@ -170,6 +163,14 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 
 		return m, m.ptyToTerminalView()
+
+	case ClosedMsg:
+		if m.id != msg.ID {
+			return m, nil
+		}
+
+		m.markClosed()
+		return m, nil
 
 	case tea.KeyPressMsg:
 		if !m.Focused() {
@@ -244,30 +245,7 @@ func (m Model) getDefaultSize() (width, height int) {
 	return m.width, m.height
 }
 
-func (m *Model) Close() {
-	if m.emu != nil {
-		_ = m.emu.Emulator.Close()
-	}
-
-	if m.cmd != nil && m.cmd.Process != nil {
-		_ = m.cmd.Process.Kill()
-		_ = xpty.WaitProcess(context.Background(), m.cmd)
-	}
-
-	if m.pty != nil {
-		_ = m.pty.Close()
-	}
-
-	if m.state != nil {
-		m.state.closed.Store(true)
-	}
-}
-
 func (m Model) View() string {
-	if m.Closed() {
-		return m.closedMessage
-	}
-
 	if m.emu == nil {
 		return ""
 	}
@@ -306,6 +284,41 @@ func (m Model) ID() int {
 	return m.id
 }
 
+func (m *Model) Close() {
+	if m.emu != nil {
+		_ = m.emu.Emulator.Close()
+	}
+
+	if m.cmd != nil && m.cmd.Process != nil {
+		_ = m.cmd.Process.Kill()
+		_ = xpty.WaitProcess(context.Background(), m.cmd)
+	}
+
+	if m.pty != nil {
+		_ = m.pty.Close()
+	}
+
+	if m.state != nil {
+		m.state.closed.Store(true)
+	}
+}
+
 func (m Model) Closed() bool {
 	return m.state != nil && m.state.closed.Load()
+}
+
+func (m *Model) markClosed() {
+	if m.state == nil || m.state.closed.Load() {
+		return
+	}
+
+	m.state.closed.Store(true)
+
+	if m.emu != nil {
+		_ = m.emu.Emulator.Close()
+	}
+
+	if m.pty != nil {
+		_ = m.pty.Close()
+	}
 }
