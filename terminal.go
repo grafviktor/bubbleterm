@@ -41,6 +41,7 @@ type Model struct {
 	width, height int
 	closedMessage string
 	command       string
+	commandArgs   []string
 	focus         bool
 }
 
@@ -64,7 +65,7 @@ func New(opts ...Option) (Model, error) {
 		m.closedMessage = "not running"
 	}
 
-	cmd := buildCommand(m.command)
+	cmd := buildCommand(m.command, m.commandArgs...)
 
 	// Init example taken from https://github.com/charmbracelet/freeze/blob/main/pty.go
 	pty, err := xpty.NewPty(m.width, m.height)

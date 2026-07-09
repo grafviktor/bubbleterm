@@ -2,9 +2,10 @@ package termview
 
 type Option func(*Model)
 
-func WithCommand(cmd string) Option {
+func WithCommand(cmd string, args ...string) Option {
 	return func(tw *Model) {
 		tw.command = cmd
+		tw.commandArgs = append([]string(nil), args...)
 	}
 }
 

@@ -15,8 +15,8 @@ func getShellPath() string {
 	return command
 }
 
-func buildCommand(cmd string) *exec.Cmd {
-	cmdExec := exec.Command(cmd)
+func buildCommand(cmd string, args ...string) *exec.Cmd {
+	cmdExec := exec.Command(cmd, args...)
 	cmdExec.Env = append(os.Environ(), "TERM=xterm-256color")
 	return cmdExec
 }

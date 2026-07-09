@@ -17,8 +17,8 @@ func getShellPath() string {
 	return command
 }
 
-func buildCommand(cmd string) *exec.Cmd {
-	cmdExec := exec.Command(cmd)
+func buildCommand(cmd string, args ...string) *exec.Cmd {
+	cmdExec := exec.Command(cmd, args...)
 	cmdExec.Env = append(os.Environ(), "TERM=xterm-256color")
 	// Should match creack/pty.StartWithSize behavior. See here:
 	// https://github.com/creack/pty/blob/v1.1.24/start.go#L18-L24
