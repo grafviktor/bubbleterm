@@ -223,6 +223,10 @@ func (m *Model) resize(width, height int) {
 		return
 	}
 
+	if m.Closed() {
+		return
+	}
+
 	if width < minWidth {
 		width = minWidth
 	}
@@ -268,6 +272,10 @@ func (m Model) Focused() bool {
 }
 
 func (m Model) Cursor() *tea.Cursor {
+	if m.Closed() {
+		return nil
+	}
+
 	if !m.Focused() {
 		return nil
 	}
@@ -285,13 +293,27 @@ func (m Model) ID() int {
 }
 
 func (m *Model) Close() {
-	if m.emu != nil {
-		_ = m.emu.Emulator.Close()
+	if m.Closed() {
+		return
 	}
 
 	if m.cmd != nil && m.cmd.Process != nil {
 		_ = m.cmd.Process.Kill()
 		_ = xpty.WaitProcess(context.Background(), m.cmd)
+	}
+
+	m.markClosed()
+
+	// Now get rid of the emulator, we're explicitly done with it and no
+	// longer need its output.
+	if m.emu != nil {
+		_ = m.emu.Emulator.Close()
+	}
+}
+
+func (m *Model) markClosed() {
+	if m.Closed() {
+		return
 	}
 
 	if m.pty != nil {
@@ -305,20 +327,4 @@ func (m *Model) Close() {
 
 func (m Model) Closed() bool {
 	return m.state != nil && m.state.closed.Load()
-}
-
-func (m *Model) markClosed() {
-	if m.state == nil || m.state.closed.Load() {
-		return
-	}
-
-	m.state.closed.Store(true)
-
-	if m.emu != nil {
-		_ = m.emu.Emulator.Close()
-	}
-
-	if m.pty != nil {
-		_ = m.pty.Close()
-	}
 }
