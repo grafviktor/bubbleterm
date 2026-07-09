@@ -3,7 +3,6 @@ package main
 import (
 	"log"
 	"os"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/term"
@@ -23,10 +22,7 @@ func (a app) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.term = updated
 		return a, cmd
 	case termview.ClosedMsg:
-		return a, func() tea.Msg {
-			time.Sleep(time.Second * 5)
-			return tea.Quit()
-		}
+		return a, tea.Quit
 	default:
 		updated, cmd := a.term.Update(msg)
 		a.term = updated
