@@ -26,7 +26,6 @@ func New(terminalsCount int) Manager {
 			termview.WithCommand("/bin/bash"),
 			termview.WithInitialWidth(80),
 			termview.WithInitialHeight(24),
-			termview.WithClosedMessage("command exited"),
 		)
 		if err != nil {
 			log.Fatalf("failed to start terminal %d: %v", i, err)

@@ -17,13 +17,12 @@ func (a app) Init() tea.Cmd { return a.term.Init() }
 
 func (a app) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case termview.OutputMsg, termview.ClosedMsg:
+	case termview.OutputMsg:
 		updated, cmd := a.term.Update(msg)
 		a.term = updated
-		if _, ok := msg.(termview.ClosedMsg); ok {
-			return a, tea.Quit
-		}
 		return a, cmd
+	case termview.ClosedMsg:
+		return a, tea.Quit
 	default:
 		updated, cmd := a.term.Update(msg)
 		a.term = updated

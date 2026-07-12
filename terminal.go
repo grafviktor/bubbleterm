@@ -2,6 +2,8 @@ package termview
 
 import (
 	"context"
+	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"sync/atomic"
@@ -39,10 +41,10 @@ type Model struct {
 
 	id            int
 	width, height int
-	closedMessage string
 	command       string
 	commandArgs   []string
 	focus         bool
+	stdErr        io.Writer
 }
 
 func New(opts ...Option) (Model, error) {
@@ -61,11 +63,10 @@ func New(opts ...Option) (Model, error) {
 		m.command = getShellPath()
 	}
 
-	if m.closedMessage == "" {
-		m.closedMessage = "not running"
-	}
-
 	cmd := buildCommand(m.command, m.commandArgs...)
+	if m.stdErr != nil {
+		cmd.Stderr = m.stdErr
+	}
 
 	// Init example taken from https://github.com/charmbracelet/freeze/blob/main/pty.go
 	pty, err := xpty.NewPty(m.width, m.height)
@@ -103,11 +104,7 @@ func (m Model) Init() tea.Cmd {
 	// query replies *and* key bytes from SendKey — into the shell PTY.
 	go m.terminalViewToPty()
 
-	cmds := []tea.Cmd{
-		m.ptyToTerminalView(),
-		m.waitForProcess(),
-	}
-	return tea.Batch(cmds...)
+	return m.ptyToTerminalView()
 }
 
 func (m Model) terminalViewToPty() {
@@ -132,22 +129,38 @@ func (m Model) ptyToTerminalView() tea.Cmd {
 	return func() tea.Msg {
 		buf := make([]byte, 4096)
 		n, err := m.pty.Read(buf)
+		if n > 0 {
+			_, _ = m.emu.Write(buf[:n])
+			return OutputMsg{ID: m.id}
+		}
+
 		if err != nil {
-			return ClosedMsg{ID: m.id}
+			if m.cmd != nil {
+				err = xpty.WaitProcess(context.Background(), m.cmd)
+			}
+
+			exitCode := 0
+			if m.cmd != nil && m.cmd.ProcessState != nil {
+				exitCode = m.cmd.ProcessState.ExitCode()
+			}
+
+			// For non-zero exits, waitErr is often *exec.ExitError.
+			// You can also extract directly from the error:
+			if err != nil {
+				var ee *exec.ExitError
+				if errors.As(err, &ee) {
+					exitCode = ee.ExitCode()
+				}
+			}
+
+			return ClosedMsg{
+				ID:              m.id,
+				ProcessExitCode: exitCode,
+				ProcessError:    err,
+			}
 		}
-		_, _ = m.emu.Write(buf[:n])
+
 		return OutputMsg{ID: m.id}
-	}
-}
-
-func (m Model) waitForProcess() tea.Cmd {
-	return func() tea.Msg {
-		if m.cmd == nil {
-			return nil
-		}
-
-		_ = xpty.WaitProcess(context.Background(), m.cmd)
-		return ClosedMsg{ID: m.id}
 	}
 }
 
@@ -170,6 +183,14 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 
 		return m, m.ptyToTerminalView()
+
+	case ClosedMsg:
+		if m.id != msg.ID {
+			return m, nil
+		}
+
+		m.markClosed()
+		return m, nil
 
 	case tea.KeyPressMsg:
 		if !m.Focused() {
@@ -222,6 +243,10 @@ func (m *Model) resize(width, height int) {
 		return
 	}
 
+	if m.Closed() {
+		return
+	}
+
 	if width < minWidth {
 		width = minWidth
 	}
@@ -244,30 +269,7 @@ func (m Model) getDefaultSize() (width, height int) {
 	return m.width, m.height
 }
 
-func (m *Model) Close() {
-	if m.emu != nil {
-		_ = m.emu.Emulator.Close()
-	}
-
-	if m.cmd != nil && m.cmd.Process != nil {
-		_ = m.cmd.Process.Kill()
-		_ = xpty.WaitProcess(context.Background(), m.cmd)
-	}
-
-	if m.pty != nil {
-		_ = m.pty.Close()
-	}
-
-	if m.state != nil {
-		m.state.closed.Store(true)
-	}
-}
-
 func (m Model) View() string {
-	if m.Closed() {
-		return m.closedMessage
-	}
-
 	if m.emu == nil {
 		return ""
 	}
@@ -290,6 +292,10 @@ func (m Model) Focused() bool {
 }
 
 func (m Model) Cursor() *tea.Cursor {
+	if m.Closed() {
+		return nil
+	}
+
 	if !m.Focused() {
 		return nil
 	}
@@ -304,6 +310,54 @@ func (m Model) Cursor() *tea.Cursor {
 
 func (m Model) ID() int {
 	return m.id
+}
+
+func (m Model) Command() string {
+	return m.command
+}
+
+func (m Model) Args() []string {
+	return append([]string(nil), m.commandArgs...)
+}
+
+func (m Model) PID() int {
+	if m.cmd != nil && m.cmd.Process != nil {
+		return m.cmd.Process.Pid
+	}
+	return 0
+}
+
+func (m *Model) Close() {
+	if m.Closed() {
+		return
+	}
+
+	if m.cmd != nil && m.cmd.Process != nil {
+		_ = m.cmd.Process.Kill()
+		_ = xpty.WaitProcess(context.Background(), m.cmd)
+	}
+
+	m.markClosed()
+
+	// Now get rid of the emulator, we're explicitly done with it and no
+	// longer need its output.
+	if m.emu != nil {
+		_ = m.emu.Emulator.Close()
+	}
+}
+
+func (m *Model) markClosed() {
+	if m.Closed() {
+		return
+	}
+
+	if m.pty != nil {
+		_ = m.pty.Close()
+	}
+
+	if m.state != nil {
+		m.state.closed.Store(true)
+	}
 }
 
 func (m Model) Closed() bool {
