@@ -30,6 +30,9 @@ func nextID() int {
 type session struct {
 	showCursor atomic.Bool
 	closed     atomic.Bool
+	exited     chan struct{}
+	exitCode   int
+	exitErr    error
 }
 
 // Model embeds a shell in Bubble Tea using x/vt for emulation and xpty for the pseudo-terminal.
@@ -83,7 +86,7 @@ func New(opts ...Option) (Model, error) {
 	}
 
 	emu := vt.NewSafeEmulator(m.width, m.height)
-	state := &session{}
+	state := &session{exited: make(chan struct{})}
 	state.showCursor.Store(true)
 	emu.SetCallbacks(vt.Callbacks{
 		CursorVisibility: func(visible bool) {
@@ -96,7 +99,35 @@ func New(opts ...Option) (Model, error) {
 	m.emu = emu
 	m.state = state
 
+	go m.waitProcessExit()
+
 	return m, nil
+}
+
+// This is required for Windows. In Unix pty will be closed automatically when the process exits.
+// And m.pty.Read(buf) will return EIO error once the PTY is closed, so the read loop will exit.
+// On Windows, ConPTY does not return any errors on m.pty.Read(buf) and the reading loop just blocks.
+// Here we monitor the process in a separate goroutine and let the app know that the process
+// exited by sending a message through channel and closing the PTY.
+func (m Model) waitProcessExit() {
+	err := xpty.WaitProcess(context.Background(), m.cmd)
+
+	exitCode := 0
+	var exitErr *exec.ExitError
+	switch {
+	case errors.As(err, &exitErr):
+		exitCode = exitErr.ExitCode()
+	case m.cmd.ProcessState != nil:
+		exitCode = m.cmd.ProcessState.ExitCode()
+	}
+
+	m.state.exitCode = exitCode
+	m.state.exitErr = err
+	close(m.state.exited)
+
+	if m.pty != nil {
+		_ = m.pty.Close()
+	}
 }
 
 func (m Model) Init() tea.Cmd {
@@ -135,28 +166,12 @@ func (m Model) ptyToTerminalView() tea.Cmd {
 		}
 
 		if err != nil {
-			if m.cmd != nil {
-				err = xpty.WaitProcess(context.Background(), m.cmd)
-			}
-
-			exitCode := 0
-			if m.cmd != nil && m.cmd.ProcessState != nil {
-				exitCode = m.cmd.ProcessState.ExitCode()
-			}
-
-			// For non-zero exits, waitErr is often *exec.ExitError.
-			// You can also extract directly from the error:
-			if err != nil {
-				var ee *exec.ExitError
-				if errors.As(err, &ee) {
-					exitCode = ee.ExitCode()
-				}
-			}
-
+			// If there was an error we block and wait the proess to exit.
+			<-m.state.exited
 			return ClosedMsg{
 				ID:              m.id,
-				ProcessExitCode: exitCode,
-				ProcessError:    err,
+				ProcessExitCode: m.state.exitCode,
+				ProcessError:    m.state.exitErr,
 			}
 		}
 
@@ -334,7 +349,9 @@ func (m *Model) Close() {
 
 	if m.cmd != nil && m.cmd.Process != nil {
 		_ = m.cmd.Process.Kill()
-		_ = xpty.WaitProcess(context.Background(), m.cmd)
+		if m.state != nil {
+			<-m.state.exited
+		}
 	}
 
 	m.markClosed()
